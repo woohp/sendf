@@ -95,6 +95,7 @@ class SendF(object):
         # if UPnP did not work, then use the internal IP as the external IP
         if not self.port_forwarded:
             self.external_ip = self.internal_ip
+            self.port = random.randint(1024, 8192)
 
         self.start_time = datetime.datetime.now()
         return True
