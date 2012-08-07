@@ -46,7 +46,7 @@ def check_files_exist(filenames):
 def get_internal_ip():
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(('google.com', 0))
+        s.connect(('google.com', 80))
         return s.getsockname()[0]
     except:
         return None
