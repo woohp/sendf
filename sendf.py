@@ -91,6 +91,8 @@ class SendF(object):
                 self.port = port
                 self.port_forwarded = True
                 break
+        else:
+            print 'UPnP not found. If you are behind a router, link will probably not work.'
 
         # if UPnP did not work, then use the internal IP as the external IP
         if not self.port_forwarded:
