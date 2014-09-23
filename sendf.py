@@ -27,7 +27,9 @@ import sys
 import signal
 import uuid
 import os
+import getpass
 import tarfile
+import zipfile
 import argparse
 import tempfile
 import datetime
@@ -35,6 +37,12 @@ import cherrypy
 import socket
 from cherrypy.lib.static import serve_file
 from upnp import *
+
+try:
+    import pyminizip
+    support_passworded_zip = True
+except ImportError:
+    support_passworded_zip = False
 
 
 def check_files_exist(filenames):
@@ -52,11 +60,12 @@ def get_internal_ip():
         return None
 
 class SendF(object):
-    def __init__(self, filenames, allow_external=False, output_fname=None, compression="gz"):
+    def __init__(self, filenames, allow_external=False, output_fname=None, compression="gz", password=None):
         self.filenames = filenames
         self.allow_external = allow_external
         self.output_fname = output_fname
         self.compression = compression
+        self.password = password
 
         self.internal_ip = None
         self.external_ip = None
@@ -117,11 +126,25 @@ class SendF(object):
         cherrypy.engine.exit()
 
     def _create_archive(self, archive_filename):
+        if self.compression == 'zip':
+            output_extension = 'zip'
+            if support_passworded_zip and self.password:
+                pyminizip.compress_multiple(self.filepaths, archive_filename, self.password, 1)
+            else:
+                with zipfile.ZipFile(archive_filename, 'w') as zFile:
+                    for path in self.filepaths:
+                        basename = os.path.basename(path)
+                        zFile.write(path, basename)
+            return output_extension
+
         if self.compression == 'gz':
+            output_extension = 'tgz'
             f = tarfile.open(archive_filename, 'w:gz')
         elif self.compression == 'bz2':
+            output_extension = 'tar.bz2'
             f = tarfile.open(archive_filename, 'w:bz2')
         elif self.compression == 'tar' or self.compression == 'none':
+            output_extension = 'tar'
             f = tarfile.open(archive_filename, 'w')
 
         for path in self.filepaths:
@@ -129,6 +152,8 @@ class SendF(object):
             f.add(path, basename)
 
         f.close()
+
+        return output_extension
 
     def default(self, uuid):
         if uuid != uuid:
@@ -138,9 +163,10 @@ class SendF(object):
 
         if len(self.filepaths) > 1 or os.path.isdir(self.filepaths[0]):
             file_to_send = os.path.join(tempfile.gettempdir(), self.uuid)
-            self._create_archive(file_to_send)
+            output_extension = self._create_archive(file_to_send)
             self.compressed = file_to_send
-            name = self.output_fname if self.output_fname else "archive.tgz"
+            name, _ = os.path.splitext(self.output_fname if self.output_fname else "archive")
+            name += '.' + output_extension
         else:
             file_to_send = self.filepaths[0]
             name = self.output_fname
@@ -175,8 +201,10 @@ def main():
             help="name of the file the user will receive it as")
     parser.add_argument("-E", "--external", action="store_true", default=False,
             help="whether or not to use an external ip via uPnP")
-    parser.add_argument("-c", "--compression", type=str, default="gz", choices=["gz", "bz2", "none"],
+    parser.add_argument("-c", "--compression", type=str, default="gz", choices=["gz", "bz2", "zip", "none"],
             help="compression method to use")
+    parser.add_argument("-P", "--passworded", action='store_true', default=False,
+            help="whether or not to password protect the file. compression method must be zip")
     parser.add_argument("files", type=str, nargs="+",
             help="files to send")
     args = vars(parser.parse_args())
@@ -186,7 +214,15 @@ def main():
     cherrypy.checker.on = False
 
     # initialize
-    sendf = SendF(args['files'], args['external'], args['output'], args['compression'])
+    password = None
+    if args['passworded']:
+        if not support_passworded_zip:
+            print 'WARNING: System does not support creating passworded zip. Install zlib and pyminizip. Skipping password...'
+        elif args['compression'] != 'zip':
+            print 'WARNING: You can only password protect zip files. Skipping password...'
+        else:
+            password = getpass.getpass('Password:')
+    sendf = SendF(args['files'], args['external'], args['output'], args['compression'], password)
     sendf.initialize()
     print sendf
 
