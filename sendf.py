@@ -52,10 +52,11 @@ def get_internal_ip():
         return None
 
 class SendF(object):
-    def __init__(self, filenames, allow_external, output_fname):
+    def __init__(self, filenames, allow_external=False, output_fname=None, compression="gz"):
         self.filenames = filenames
         self.allow_external = allow_external
         self.output_fname = output_fname
+        self.compression = compression
 
         self.internal_ip = None
         self.external_ip = None
@@ -115,12 +116,12 @@ class SendF(object):
         self.finalize()
         cherrypy.engine.exit()
 
-    def _create_archive(self, archive_filename, compress='gz'):
-        if compress == 'gz':
+    def _create_archive(self, archive_filename):
+        if self.compression == 'gz':
             f = tarfile.open(archive_filename, 'w:gz')
-        elif compress == 'bz2':
+        elif self.compression == 'bz2':
             f = tarfile.open(archive_filename, 'w:bz2')
-        elif compress == 'tar' or compress == 'none':
+        elif self.compression == 'tar' or self.compression == 'none':
             f = tarfile.open(archive_filename, 'w')
 
         for path in self.filepaths:
@@ -139,7 +140,7 @@ class SendF(object):
             file_to_send = os.path.join(tempfile.gettempdir(), self.uuid)
             self._create_archive(file_to_send)
             self.compressed = file_to_send
-            name = self.output_name if self.output_name else "archive.tgz"
+            name = self.output_fname if self.output_fname else "archive.tgz"
         else:
             file_to_send = self.filepaths[0]
             name = self.output_fname
@@ -174,6 +175,8 @@ def main():
             help="name of the file the user will receive it as")
     parser.add_argument("-E", "--external", action="store_true", default=False,
             help="whether or not to use an external ip via uPnP")
+    parser.add_argument("-c", "--compression", type=str, default="gz", choices=["gz", "bz2", "none"],
+            help="compression method to use")
     parser.add_argument("files", type=str, nargs="+",
             help="files to send")
     args = vars(parser.parse_args())
@@ -183,7 +186,7 @@ def main():
     cherrypy.checker.on = False
 
     # initialize
-    sendf = SendF(args['files'], args['external'], args['output'])
+    sendf = SendF(args['files'], args['external'], args['output'], args['compression'])
     sendf.initialize()
     print sendf
 
