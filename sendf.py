@@ -52,8 +52,10 @@ def get_internal_ip():
         return None
 
 class SendF(object):
-    def __init__(self, filenames):
+    def __init__(self, filenames, allow_external):
         self.filenames = filenames
+        self.allow_external = allow_external
+
         self.internal_ip = None
         self.external_ip = None
         self.port = None
@@ -77,22 +79,24 @@ class SendF(object):
             return False
 
         # first, do UPnP discovery
-        upnp = UPnPPlatformIndependent()
-        self.upnp = upnp
-        upnp.discover()
-        if upnp.found_wanted_services():
-            self.external_ip = upnp.get_ext_ip()
-            for i in xrange(10):
-                port = random.randint(1024, 8192)
-                try:
-                    upnp.add_port_map(self.internal_ip, port)
-                except:
-                    continue
-                self.port = port
-                self.port_forwarded = True
-                break
-        else:
-            print 'UPnP not found. If you are behind a router, link will probably not work.'
+        # skip if we don't want external ips
+        if self.allow_external:
+            upnp = UPnPPlatformIndependent()
+            self.upnp = upnp
+            upnp.discover()
+            if upnp.found_wanted_services():
+                self.external_ip = upnp.get_ext_ip()
+                for i in xrange(10):
+                    port = random.randint(1024, 8192)
+                    try:
+                        upnp.add_port_map(self.internal_ip, port)
+                    except:
+                        continue
+                    self.port = port
+                    self.port_forwarded = True
+                    break
+            else:
+                print 'UPnP not found. If you are behind a router, link will probably not work.'
 
         # if UPnP did not work, then use the internal IP as the external IP
         if not self.port_forwarded:
@@ -165,6 +169,8 @@ def main():
             help="time before the link expires, in minutes")
     parser.add_argument("-o", "--output", type=str, default='',
             help="name of the file the user will receive it as")
+    parser.add_argument("-E", "--external", action="store_true", default=False,
+            help="whether or not to use an external ip via uPnP")
     parser.add_argument("files", type=str, nargs="+",
             help="files to send")
     args = vars(parser.parse_args())
@@ -174,7 +180,7 @@ def main():
     cherrypy.checker.on = False
 
     # initialize
-    sendf = SendF(args['files'])
+    sendf = SendF(args['files'], args['external'])
     sendf.initialize()
     print sendf
 
