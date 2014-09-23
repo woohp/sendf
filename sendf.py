@@ -52,9 +52,10 @@ def get_internal_ip():
         return None
 
 class SendF(object):
-    def __init__(self, filenames, allow_external):
+    def __init__(self, filenames, allow_external, output_fname):
         self.filenames = filenames
         self.allow_external = allow_external
+        self.output_fname = output_fname
 
         self.internal_ip = None
         self.external_ip = None
@@ -142,10 +143,10 @@ class SendF(object):
             file_to_send = os.path.join(tempfile.gettempdir(), self.uuid)
             self._create_archive(file_to_send)
             self.compressed = file_to_send
-            name = "archive.tgz"
+            name = self.output_name if self.output_name else "archive.tgz"
         else:
             file_to_send = self.filepaths[0]
-            name = None
+            name = self.output_fname
 
         self.download_count += 1
         return serve_file(
@@ -167,7 +168,7 @@ def main():
 #            help="maximum download count before the link expires")
     parser.add_argument("-d", "--duration", type=int, default=30,
             help="time before the link expires, in minutes")
-    parser.add_argument("-o", "--output", type=str, default='',
+    parser.add_argument("-o", "--output", type=str, default=None,
             help="name of the file the user will receive it as")
     parser.add_argument("-E", "--external", action="store_true", default=False,
             help="whether or not to use an external ip via uPnP")
@@ -180,7 +181,7 @@ def main():
     cherrypy.checker.on = False
 
     # initialize
-    sendf = SendF(args['files'], args['external'])
+    sendf = SendF(args['files'], args['external'], args['output'])
     sendf.initialize()
     print sendf
 
