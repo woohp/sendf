@@ -28,11 +28,11 @@ import signal
 import uuid
 import os
 import tarfile
-import random
 import argparse
 import tempfile
 import datetime
 import cherrypy
+import socket
 from cherrypy.lib.static import serve_file
 from upnp import *
 
@@ -79,6 +79,8 @@ class SendF(object):
         if self.internal_ip == None:
             return False
 
+        self.port = self._get_unused_port()
+
         # first, do UPnP discovery
         # skip if we don't want external ips
         if self.allow_external:
@@ -88,12 +90,7 @@ class SendF(object):
             if upnp.found_wanted_services():
                 self.external_ip = upnp.get_ext_ip()
                 for i in xrange(10):
-                    port = random.randint(1024, 8192)
-                    try:
-                        upnp.add_port_map(self.internal_ip, port)
-                    except:
-                        continue
-                    self.port = port
+                    upnp.add_port_map(self.internal_ip, self.port)
                     self.port_forwarded = True
                     break
             else:
@@ -102,7 +99,6 @@ class SendF(object):
         # if UPnP did not work, then use the internal IP as the external IP
         if not self.port_forwarded:
             self.external_ip = self.internal_ip
-            self.port = random.randint(1024, 8192)
 
         self.start_time = datetime.datetime.now()
         return True
@@ -157,6 +153,12 @@ class SendF(object):
 
     default.exposed = True
 
+    def _get_unused_port(self):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(('localhost', 0))
+        addr, port = s.getsockname()
+        s.close()
+        return port
     
     def __repr__(self):
         return "http://%s:%d/%s" % (self.external_ip, self.port, self.uuid)
