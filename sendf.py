@@ -1,6 +1,6 @@
 # Copyright (c) 2012, Hui Peng Hu
 # All rights reserved.
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
 # 1. Redistributions of source code must retain the above copyright
@@ -11,7 +11,7 @@
 # 3. All advertising materials mentioning features or use of this software
 # must display the following acknowledgement:
 # This product includes software developed by Hui Peng Hu.
-# 
+#
 # THIS SOFTWARE IS PROVIDED BY Hui Peng Hu ''AS IS'' AND ANY
 # EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -23,6 +23,8 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from __future__ import absolute_import, unicode_literals, division, print_function
+
 import sys
 import signal
 import uuid
@@ -33,10 +35,10 @@ import zipfile
 import argparse
 import tempfile
 import datetime
-import cherrypy
 import socket
+import cherrypy
 from cherrypy.lib.static import serve_file
-from upnp import *
+from upnp import UPnPPlatformIndependent
 
 try:
     import pyminizip
@@ -45,12 +47,6 @@ except ImportError:
     support_passworded_zip = False
 
 
-def check_files_exist(filenames):
-    for filename in filenames:
-        if os.path.exists(filename) == False:
-            return False
-    return True
-
 def get_internal_ip():
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -58,6 +54,7 @@ def get_internal_ip():
         return s.getsockname()[0]
     except:
         return None
+
 
 class SendF(object):
     def __init__(self, filenames, allow_external=False, output_fname=None, compression="gz", password=None):
@@ -80,13 +77,13 @@ class SendF(object):
 
     def initialize(self):
         # first, check that all files exists
-        if check_files_exist(self.filenames) == False:
+        if not all(map(os.path.exists, self.filenames)):
             return False
         self.filepaths = [os.path.abspath(f) for f in self.filenames]
 
         # try getting the internal IP
         self.internal_ip = get_internal_ip()
-        if self.internal_ip == None:
+        if self.internal_ip is None:
             return False
 
         self.port = self._get_unused_port()
@@ -104,7 +101,7 @@ class SendF(object):
                     self.port_forwarded = True
                     break
             else:
-                print 'UPnP not found. If you are behind a router, link will probably not work.'
+                print('UPnP not found. If you are behind a router, link will probably not work.')
 
         # if UPnP did not work, then use the internal IP as the external IP
         if not self.port_forwarded:
@@ -158,7 +155,7 @@ class SendF(object):
     def default(self, uuid):
         if uuid != uuid:
             return
-        if check_files_exist(self.filepaths) == False:
+        if not all(map(os.path.exists, self.filepaths)):
             self.quit()
 
         if len(self.filepaths) > 1 or os.path.isdir(self.filepaths[0]):
@@ -173,10 +170,10 @@ class SendF(object):
 
         self.download_count += 1
         return serve_file(
-                file_to_send,
-                content_type="application/x-download",
-                disposition="attachment",
-                name=name)
+            file_to_send,
+            content_type="application/x-download",
+            disposition="attachment",
+            name=name)
 
     default.exposed = True
 
@@ -186,7 +183,7 @@ class SendF(object):
         addr, port = s.getsockname()
         s.close()
         return port
-    
+
     def __repr__(self):
         return "http://%s:%d/%s" % (self.external_ip, self.port, self.uuid)
 
@@ -195,18 +192,15 @@ def main():
     parser = argparse.ArgumentParser(prog="sendf")
 #    parser.add_argument("-c", "--count", type=int, default=2,
 #            help="maximum download count before the link expires")
-    parser.add_argument("-d", "--duration", type=int, default=30,
-            help="time before the link expires, in minutes")
-    parser.add_argument("-o", "--output", type=str, default=None,
-            help="name of the file the user will receive it as")
-    parser.add_argument("-E", "--external", action="store_true", default=False,
-            help="whether or not to use an external ip via uPnP")
+    parser.add_argument("-d", "--duration", type=int, default=30, help="time before the link expires, in minutes")
+    parser.add_argument("-o", "--output", type=str, default=None, help="name of the file the user will receive it as")
+    parser.add_argument("-e", "--external", action="store_true", default=False,
+                        help="whether or not to use an external ip via uPnP")
     parser.add_argument("-c", "--compression", type=str, default="gz", choices=["gz", "bz2", "zip", "none"],
-            help="compression method to use")
-    parser.add_argument("-P", "--passworded", action='store_true', default=False,
-            help="whether or not to password protect the file. compression method must be zip")
-    parser.add_argument("files", type=str, nargs="+",
-            help="files to send")
+                        help="compression method to use")
+    parser.add_argument("-p", "--passworded", action='store_true', default=False,
+                        help="whether or not to password protect the file. compression method must be zip")
+    parser.add_argument("files", type=str, nargs="+", help="files to send")
     args = vars(parser.parse_args())
 
     # stop cherrypy from printing stuff to the screen
@@ -217,14 +211,15 @@ def main():
     password = None
     if args['passworded']:
         if not support_passworded_zip:
-            print 'WARNING: System does not support creating passworded zip. Install zlib and pyminizip. Skipping password...'
+            print('WARNING: System does not support creating passworded zip. '
+                  'Install zlib and pyminizip. Skipping password...')
         elif args['compression'] != 'zip':
-            print 'WARNING: You can only password protect zip files. Skipping password...'
+            print('WARNING: You can only password protect zip files. Skipping password...')
         else:
             password = getpass.getpass('Password:')
     sendf = SendF(args['files'], args['external'], args['output'], args['compression'], password)
     sendf.initialize()
-    print sendf
+    print(sendf)
 
     # setup signal handlers
     def signal_handler(signal, frame):
@@ -236,20 +231,21 @@ def main():
 
     # set function to check whether the duration has passed
     duration = datetime.timedelta(minutes=args['duration'])
-    check_frequency = args['duration'] * 10 # check every 10 seconds
+    check_frequency = args['duration'] * 10  # check every 10 seconds
+
     def check_duration():
         if datetime.datetime.now() - sendf.start_time >= duration:
             sendf.quit()
     cherrypy.process.plugins.Monitor(
-            cherrypy.engine,
-            check_duration,
-            check_frequency).subscribe()
+        cherrypy.engine,
+        check_duration,
+        check_frequency).subscribe()
 
     # config server and start it up
     cherrypy.config.update({'server.socket_host': '0.0.0.0',
                             'server.socket_port': sendf.port})
     cherrypy.quickstart(sendf)
 
+
 if __name__ == '__main__':
     main()
-
