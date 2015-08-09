@@ -25,14 +25,10 @@
 
 from __future__ import absolute_import, unicode_literals, division, print_function
 
-import sys
-import signal
 import uuid
 import os
-import getpass
 import tarfile
 import zipfile
-import argparse
 import tempfile
 import datetime
 import socket
@@ -192,66 +188,3 @@ class SendF(object):
     @property
     def link(self):
         return "http://{}:{}/{}".format(self.external_ip, self.port, self.uuid)
-
-
-def main():
-    parser = argparse.ArgumentParser(prog="sendf")
-#    parser.add_argument("-c", "--count", type=int, default=2,
-#            help="maximum download count before the link expires")
-    parser.add_argument("-d", "--duration", type=int, default=30, help="time before the link expires, in minutes")
-    parser.add_argument("-o", "--output", type=str, default=None, help="name of the file the user will receive it as")
-    parser.add_argument("-e", "--external", action="store_true", default=False,
-                        help="whether or not to use an external ip via uPnP")
-    parser.add_argument("-c", "--compression", type=str, default="gz", choices=["gz", "bz2", "zip", "none"],
-                        help="compression method to use")
-    parser.add_argument("-p", "--passworded", action='store_true', default=False,
-                        help="whether or not to password protect the file. compression method must be zip")
-    parser.add_argument("files", type=str, nargs="+", help="files to send")
-    args = vars(parser.parse_args())
-
-    # stop cherrypy from printing stuff to the screen
-    cherrypy.log.screen = False
-    cherrypy.checker.on = False
-
-    # initialize
-    password = None
-    if args['passworded']:
-        if not support_passworded_zip:
-            print('WARNING: System does not support creating passworded zip. '
-                  'Install zlib and pyminizip. Skipping password...')
-        elif args['compression'] != 'zip':
-            print('WARNING: You can only password protect zip files. Skipping password...')
-        else:
-            password = getpass.getpass('Password:')
-    sendf = SendF(args['files'], args['external'], args['output'], args['compression'], password)
-    sendf.initialize()
-    print(sendf.link)
-
-    # setup signal handlers
-    def signal_handler(signal, frame):
-        sendf.finalize()
-        sys.exit(0)
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGQUIT, signal_handler)
-
-    # set function to check whether the duration has passed
-    duration = datetime.timedelta(minutes=args['duration'])
-    check_frequency = args['duration'] * 10  # check every 10 seconds
-
-    def check_duration():
-        if datetime.datetime.now() - sendf.start_time >= duration:
-            sendf.quit()
-    cherrypy.process.plugins.Monitor(
-        cherrypy.engine,
-        check_duration,
-        check_frequency).subscribe()
-
-    # config server and start it up
-    cherrypy.config.update({'server.socket_host': '0.0.0.0',
-                            'server.socket_port': sendf.port})
-    cherrypy.quickstart(sendf)
-
-
-if __name__ == '__main__':
-    main()
