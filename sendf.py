@@ -56,6 +56,11 @@ def get_internal_ip():
         return None
 
 
+def log_finish_request():
+    print('sent to {}'.format(cherrypy.request.remote.ip))
+cherrypy.tools.log_finish_request = cherrypy.Tool('on_end_request', log_finish_request, 'log_finish_request')
+
+
 class SendF(object):
     def __init__(self, filenames, allow_external=False, output_fname=None, compression="gz", password=None):
         self.filenames = filenames
@@ -140,7 +145,7 @@ class SendF(object):
         elif self.compression == 'bz2':
             output_extension = 'tar.bz2'
             f = tarfile.open(archive_filename, 'w:bz2')
-        elif self.compression == 'tar' or self.compression == 'none':
+        elif self.compression in ('tar', 'none'):
             output_extension = 'tar'
             f = tarfile.open(archive_filename, 'w')
 
@@ -152,6 +157,8 @@ class SendF(object):
 
         return output_extension
 
+    @cherrypy.expose
+    @cherrypy.tools.log_finish_request()
     def default(self, uuid):
         if uuid != uuid:
             return
@@ -175,8 +182,6 @@ class SendF(object):
             disposition="attachment",
             name=name)
 
-    default.exposed = True
-
     def _get_unused_port(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.bind(('localhost', 0))
@@ -184,8 +189,9 @@ class SendF(object):
         s.close()
         return port
 
-    def __repr__(self):
-        return "http://%s:%d/%s" % (self.external_ip, self.port, self.uuid)
+    @property
+    def link(self):
+        return "http://{}:{}/{}".format(self.external_ip, self.port, self.uuid)
 
 
 def main():
@@ -219,7 +225,7 @@ def main():
             password = getpass.getpass('Password:')
     sendf = SendF(args['files'], args['external'], args['output'], args['compression'], password)
     sendf.initialize()
-    print(sendf)
+    print(sendf.link)
 
     # setup signal handlers
     def signal_handler(signal, frame):
