@@ -16,5 +16,3 @@ sendf -h
 This program can automatically forward ports using UPnP if your router supports UPnP.
 
 This program is released under the BSD license.
-It does depend on a UPnP component from the Tribler project, which itself is
-released under the LGPL license.

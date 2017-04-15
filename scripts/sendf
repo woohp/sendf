@@ -17,8 +17,6 @@ except ImportError:
 
 def main():
     parser = argparse.ArgumentParser(prog="sendf")
-#    parser.add_argument("-c", "--count", type=int, default=2,
-#            help="maximum download count before the link expires")
     parser.add_argument("-d", "--duration", type=int, default=30, help="time before the link expires, in minutes")
     parser.add_argument("-o", "--output", type=str, default=None, help="name of the file the user will receive it as")
     parser.add_argument("-e", "--external", action="store_true", default=False,

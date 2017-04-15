@@ -34,7 +34,7 @@ import datetime
 import socket
 import cherrypy
 from cherrypy.lib.static import serve_file
-from upnp import UPnPPlatformIndependent
+import upnp
 
 try:
     import pyminizip
@@ -54,6 +54,8 @@ def get_internal_ip():
 
 def log_finish_request():
     print('sent to {}'.format(cherrypy.request.remote.ip))
+
+
 cherrypy.tools.log_finish_request = cherrypy.Tool('on_end_request', log_finish_request, 'log_finish_request')
 
 
@@ -69,7 +71,7 @@ class SendF(object):
         self.external_ip = None
         self.port = None
         self.uuid = str(uuid.uuid4())
-        self.upnp = None
+        self.igd_device = None
         self.port_forwarded = False
         self.compressed = None
 
@@ -92,15 +94,11 @@ class SendF(object):
         # first, do UPnP discovery
         # skip if we don't want external ips
         if self.allow_external:
-            upnp = UPnPPlatformIndependent()
-            self.upnp = upnp
-            upnp.discover()
-            if upnp.found_wanted_services():
-                self.external_ip = upnp.get_ext_ip()
-                for i in xrange(10):
-                    upnp.add_port_map(self.internal_ip, self.port)
-                    self.port_forwarded = True
-                    break
+            self.igd_device = upnp.discover()
+            if self.igd_device:
+                self.external_ip = upnp.get_external_ip_address(self.igd_device)
+                upnp.add_port_mapping(self.igd_device, self.internal_ip, self.port, self.port)
+                self.port_forwarded = True
             else:
                 print('UPnP not found. If you are behind a router, link will probably not work.')
 
@@ -113,7 +111,7 @@ class SendF(object):
 
     def finalize(self):
         if self.port_forwarded:
-            self.upnp.del_port_map(self.port)
+            upnp.delete_port_mapping(self.igd_device, self.port)
             self.port_forwarded = False
         if self.compressed:
             os.remove(self.compressed)
