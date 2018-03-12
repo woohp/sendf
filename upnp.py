@@ -1,7 +1,7 @@
 import socket
-from cStringIO import StringIO
-import urllib2
-from urlparse import urlparse
+from io import StringIO
+from urllib.request import urlopen, Request
+from urllib.parse import urlparse
 from xml.dom import minidom
 
 
@@ -49,7 +49,7 @@ def _parse_discovery_response(response_io):
 
 
 def _find_services(location):
-    response = urllib2.urlopen(location)
+    response = urlopen(location)
     root_xml = minidom.parseString(response.read())
     response.close()
 
@@ -118,6 +118,6 @@ def _create_soap_request_helper(device, method_name, body_fragment=""):
         "SOAPAction": r'urn:schemas-upnp-org:service:WANIPConnection:1#{method_name}'.format(method_name=method_name)
     }
 
-    request = urllib2.Request(device, body, headers)
-    response = urllib2.urlopen(request)
+    request = Request(device, body, headers)
+    response = urlopen(request)
     return response
