@@ -23,8 +23,6 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from __future__ import absolute_import, unicode_literals, division, print_function
-
 import uuid
 import os
 import tarfile
@@ -154,7 +152,7 @@ class SendF(object):
     @cherrypy.expose
     @cherrypy.tools.log_finish_request()
     def default(self, uuid):
-        if uuid != uuid:
+        if uuid != self.uuid:
             return
         if not all(map(os.path.exists, self.filepaths)):
             self.quit()
