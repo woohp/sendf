@@ -26,57 +26,47 @@
 import uuid
 import os
 import tarfile
-import zipfile
 import tempfile
 import datetime
 import socket
 import cherrypy
 from cherrypy.lib.static import serve_file
 import upnp
-
-try:
-    import pyminizip
-    support_passworded_zip = True
-except ImportError:
-    support_passworded_zip = False
+from typing import Sequence, Optional
 
 
-def get_internal_ip():
+def get_internal_ip() -> Optional[str]:
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(('google.com', 80))
         return s.getsockname()[0]
-    except:
+    except Exception:
         return None
 
 
 def log_finish_request():
-    print('sent to {}'.format(cherrypy.request.remote.ip))
+    print(f'sent to {cherrypy.request.remote.ip}')
 
 
 cherrypy.tools.log_finish_request = cherrypy.Tool('on_end_request', log_finish_request, 'log_finish_request')
 
 
 class SendF(object):
-    def __init__(self, filenames, allow_external=False, output_fname=None, compression="gz", password=None):
+    def __init__(
+        self,
+        filenames: Sequence[str],
+        allow_external: bool = False,
+        output_fname: Optional[str] = None,
+    ):
         self.filenames = filenames
         self.allow_external = allow_external
         self.output_fname = output_fname
-        self.compression = compression
-        self.password = password
 
-        self.internal_ip = None
-        self.external_ip = None
-        self.port = None
-        self.uuid = str(uuid.uuid4())
-        self.igd_device = None
+        self.uuid = str(uuid.uuid4())[:8]
+        self.igd_device: Optional[str] = None
         self.port_forwarded = False
-        self.compressed = None
 
-        self.start_time = None
-        self.download_count = 0
-
-    def initialize(self):
+    def initialize(self) -> bool:
         # first, check that all files exists
         if not all(map(os.path.exists, self.filenames)):
             return False
@@ -93,7 +83,7 @@ class SendF(object):
         # skip if we don't want external ips
         if self.allow_external:
             self.igd_device = upnp.discover()
-            if self.igd_device:
+            if self.igd_device is not None:
                 self.external_ip = upnp.get_external_ip_address(self.igd_device)
                 upnp.add_port_mapping(self.igd_device, self.internal_ip, self.port, self.port)
                 self.port_forwarded = True
@@ -107,39 +97,17 @@ class SendF(object):
         self.start_time = datetime.datetime.now()
         return True
 
-    def finalize(self):
-        if self.port_forwarded:
+    def finalize(self) -> None:
+        if self.port_forwarded and self.igd_device is not None:
             upnp.delete_port_mapping(self.igd_device, self.port)
             self.port_forwarded = False
-        if self.compressed:
-            os.remove(self.compressed)
-            self.compressed = None
 
-    def quit(self):
+    def quit(self) -> None:
         self.finalize()
         cherrypy.engine.exit()
 
-    def _create_archive(self, archive_filename):
-        if self.compression == 'zip':
-            output_extension = 'zip'
-            if support_passworded_zip and self.password:
-                pyminizip.compress_multiple(self.filepaths, archive_filename, self.password, 1)
-            else:
-                with zipfile.ZipFile(archive_filename, 'w') as zFile:
-                    for path in self.filepaths:
-                        basename = os.path.basename(path)
-                        zFile.write(path, basename)
-            return output_extension
-
-        if self.compression == 'gz':
-            output_extension = 'tgz'
-            f = tarfile.open(archive_filename, 'w:gz')
-        elif self.compression == 'bz2':
-            output_extension = 'tar.bz2'
-            f = tarfile.open(archive_filename, 'w:bz2')
-        elif self.compression in ('tar', 'none'):
-            output_extension = 'tar'
-            f = tarfile.open(archive_filename, 'w')
+    def _create_archive(self, archive_filename: str):
+        f = tarfile.open(archive_filename, 'w')
 
         for path in self.filepaths:
             basename = os.path.basename(path)
@@ -147,34 +115,25 @@ class SendF(object):
 
         f.close()
 
-        return output_extension
-
     @cherrypy.expose
     @cherrypy.tools.log_finish_request()
-    def default(self, uuid):
+    def default(self, uuid: str):
         if uuid != self.uuid:
             return
         if not all(map(os.path.exists, self.filepaths)):
             self.quit()
 
+        name: Optional[str] = None  # will use the file name
         if len(self.filepaths) > 1 or os.path.isdir(self.filepaths[0]):
             file_to_send = os.path.join(tempfile.gettempdir(), self.uuid)
-            output_extension = self._create_archive(file_to_send)
-            self.compressed = file_to_send
-            name, _ = os.path.splitext(self.output_fname if self.output_fname else "archive")
-            name += '.' + output_extension
+            self._create_archive(file_to_send)
+            name = os.path.splitext(self.output_fname if self.output_fname else "archive")[0] + '.tar'
         else:
             file_to_send = self.filepaths[0]
-            name = self.output_fname
 
-        self.download_count += 1
-        return serve_file(
-            file_to_send,
-            content_type="application/x-download",
-            disposition="attachment",
-            name=name)
+        return serve_file(file_to_send, content_type="application/x-download", disposition="attachment", name=name)
 
-    def _get_unused_port(self):
+    def _get_unused_port(self) -> int:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.bind(('localhost', 0))
         addr, port = s.getsockname()
@@ -182,5 +141,5 @@ class SendF(object):
         return port
 
     @property
-    def link(self):
-        return "http://{}:{}/{}".format(self.external_ip, self.port, self.uuid)
+    def link(self) -> str:
+        return f"http://{self.external_ip}:{self.port}/{self.uuid}"
