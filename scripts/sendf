@@ -2,7 +2,9 @@
 import sys
 import signal
 import argparse
-import cherrypy
+from starlette.applications import Starlette
+from starlette.routing import Route
+import uvicorn
 
 from sendf import SendF
 
@@ -16,14 +18,16 @@ def main():
     parser.add_argument("files", type=str, nargs="+", help="files to send")
     args = vars(parser.parse_args())
 
-    # stop cherrypy from printing stuff to the screen
-    cherrypy.log.screen = False
-    cherrypy.checker.on = False
-
     # initialize
     sendf = SendF(args['files'], args['external'], args['output'])
     sendf.initialize()
     print(sendf.link)
+
+    routes = [
+        Route('/{uuid}', sendf.call),
+    ]
+
+    app = Starlette(debug=False, routes=routes)
 
     # setup signal handlers
     def signal_handler(signal, frame):
@@ -34,9 +38,7 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGQUIT, signal_handler)
 
-    # config server and start it up
-    cherrypy.config.update({'server.socket_host': '0.0.0.0', 'server.socket_port': sendf.port})
-    cherrypy.quickstart(sendf)
+    uvicorn.run(app, host='0.0.0.0', port=sendf.port, loop='asyncio')
 
 
 if __name__ == '__main__':

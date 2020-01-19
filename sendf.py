@@ -29,8 +29,8 @@ import tarfile
 import tempfile
 import datetime
 import socket
-import cherrypy
-from cherrypy.lib.static import serve_file
+from starlette.requests import Request
+from starlette.responses import FileResponse
 import upnp
 from typing import Sequence, Optional
 
@@ -42,13 +42,6 @@ def get_internal_ip() -> Optional[str]:
         return s.getsockname()[0]
     except Exception:
         return None
-
-
-def log_finish_request():
-    print(f'sent to {cherrypy.request.remote.ip}')
-
-
-cherrypy.tools.log_finish_request = cherrypy.Tool('on_end_request', log_finish_request, 'log_finish_request')
 
 
 class SendF(object):
@@ -65,6 +58,7 @@ class SendF(object):
         self.uuid = str(uuid.uuid4())[:8]
         self.igd_device: Optional[str] = None
         self.port_forwarded = False
+        self.temp_filepath: Optional[str] = None
 
     def initialize(self) -> bool:
         # first, check that all files exists
@@ -101,10 +95,8 @@ class SendF(object):
         if self.port_forwarded and self.igd_device is not None:
             upnp.delete_port_mapping(self.igd_device, self.port)
             self.port_forwarded = False
-
-    def quit(self) -> None:
-        self.finalize()
-        cherrypy.engine.exit()
+        if self.temp_filepath is not None:
+            os.remove(self.temp_filepath)
 
     def _create_archive(self, archive_filename: str):
         f = tarfile.open(archive_filename, 'w')
@@ -115,23 +107,25 @@ class SendF(object):
 
         f.close()
 
-    @cherrypy.expose
-    @cherrypy.tools.log_finish_request()
-    def default(self, uuid: str):
+    async def call(self, request: Request):
+        uuid: str = request.path_params['uuid']
         if uuid != self.uuid:
             return
+
+        # make sure all our files exists
         if not all(map(os.path.exists, self.filepaths)):
-            self.quit()
+            raise RuntimeError
 
-        name: Optional[str] = None  # will use the file name
-        if len(self.filepaths) > 1 or os.path.isdir(self.filepaths[0]):
-            file_to_send = os.path.join(tempfile.gettempdir(), self.uuid)
-            self._create_archive(file_to_send)
-            name = os.path.splitext(self.output_fname if self.output_fname else "archive")[0] + '.tar'
-        else:
-            file_to_send = self.filepaths[0]
+        # if it is a single file, then just return that as a FileResponse
+        if len(self.filepaths) == 1 and os.path.isfile(self.filepaths[0]):
+            filename = self.output_fname or os.path.basename(self.filepaths[0])
+            return FileResponse(self.filepaths[0], filename=filename)
 
-        return serve_file(file_to_send, content_type="application/x-download", disposition="attachment", name=name)
+        # create a temporary tar file holding all of our files, and then send that tar file
+        self.temp_filepath = os.path.join(tempfile.gettempdir(), self.uuid)
+        self._create_archive(self.temp_filepath)
+        filename = self.output_fname or 'Archive.tar'
+        return FileResponse(self.temp_filepath, filename=filename)
 
     def _get_unused_port(self) -> int:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
