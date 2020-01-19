@@ -23,25 +23,27 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from io import BytesIO
 import uuid
 import os
 import tarfile
-import tempfile
-import datetime
 import socket
+from starlette.exceptions import HTTPException
 from starlette.requests import Request
-from starlette.responses import FileResponse
+from starlette.responses import FileResponse, StreamingResponse
 import upnp
-from typing import Sequence, Optional
+from typing import Sequence, Optional, AsyncGenerator
 
 
-def get_internal_ip() -> Optional[str]:
+def get_internal_ip() -> str:
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(('google.com', 80))
-        return s.getsockname()[0]
+        internal_ip = s.getsockname()[0]
+        s.close()
+        return internal_ip
     except Exception:
-        return None
+        raise RuntimeError('Failed to get internal ip address :(')
 
 
 class SendF(object):
@@ -51,66 +53,55 @@ class SendF(object):
         allow_external: bool = False,
         output_fname: Optional[str] = None,
     ):
-        self.filenames = filenames
+        # first, check that all files exists
+        if not all(map(os.path.exists, filenames)):
+            raise RuntimeError('File does not exists.')
+        self.filepaths = [os.path.abspath(f) for f in filenames]
+
+        self.internal_ip = get_internal_ip()
+        self.port = self._get_unused_port()
+
+        # do UPnP discovery and port mapping of external access is needed
+        if allow_external:
+            igd_device = upnp.discover()
+            if igd_device is not None:
+                self.igd_device = igd_device
+                self.external_ip: str = upnp.get_external_ip_address(self.igd_device)
+                upnp.add_port_mapping(igd_device, self.internal_ip, self.port, self.port)
+            else:
+                raise RuntimeError('UPnP IGD not found.')
+
+        else:
+            self.external_ip = self.internal_ip
+
         self.allow_external = allow_external
         self.output_fname = output_fname
 
         self.uuid = str(uuid.uuid4())[:8]
-        self.igd_device: Optional[str] = None
-        self.port_forwarded = False
-        self.temp_filepath: Optional[str] = None
-
-    def initialize(self) -> bool:
-        # first, check that all files exists
-        if not all(map(os.path.exists, self.filenames)):
-            return False
-        self.filepaths = [os.path.abspath(f) for f in self.filenames]
-
-        # try getting the internal IP
-        self.internal_ip = get_internal_ip()
-        if self.internal_ip is None:
-            return False
-
-        self.port = self._get_unused_port()
-
-        # first, do UPnP discovery
-        # skip if we don't want external ips
-        if self.allow_external:
-            self.igd_device = upnp.discover()
-            if self.igd_device is not None:
-                self.external_ip = upnp.get_external_ip_address(self.igd_device)
-                upnp.add_port_mapping(self.igd_device, self.internal_ip, self.port, self.port)
-                self.port_forwarded = True
-            else:
-                print('UPnP not found. If you are behind a router, link will probably not work.')
-
-        # if UPnP did not work, then use the internal IP as the external IP
-        if not self.port_forwarded:
-            self.external_ip = self.internal_ip
-
-        self.start_time = datetime.datetime.now()
-        return True
 
     def finalize(self) -> None:
-        if self.port_forwarded and self.igd_device is not None:
+        if self.allow_external:
             upnp.delete_port_mapping(self.igd_device, self.port)
-            self.port_forwarded = False
-        if self.temp_filepath is not None:
-            os.remove(self.temp_filepath)
+            self.allow_external = False
 
-    def _create_archive(self, archive_filename: str):
-        f = tarfile.open(archive_filename, 'w')
+    async def _stream_tar_file(self) -> AsyncGenerator:
+        io = BytesIO()
+        f = tarfile.open(fileobj=io, mode='w')
 
         for path in self.filepaths:
             basename = os.path.basename(path)
             f.add(path, basename)
+            yield io.getvalue()
+            io.truncate(0)
+            io.seek(0)
 
         f.close()
+        yield io.getvalue()
 
     async def call(self, request: Request):
         uuid: str = request.path_params['uuid']
         if uuid != self.uuid:
-            return
+            raise HTTPException(404)
 
         # make sure all our files exists
         if not all(map(os.path.exists, self.filepaths)):
@@ -121,11 +112,13 @@ class SendF(object):
             filename = self.output_fname or os.path.basename(self.filepaths[0])
             return FileResponse(self.filepaths[0], filename=filename)
 
-        # create a temporary tar file holding all of our files, and then send that tar file
-        self.temp_filepath = os.path.join(tempfile.gettempdir(), self.uuid)
-        self._create_archive(self.temp_filepath)
+        # stream the tar file back
         filename = self.output_fname or 'Archive.tar'
-        return FileResponse(self.temp_filepath, filename=filename)
+        return StreamingResponse(
+            self._stream_tar_file(),
+            headers={'content-disposition': f'attachment; filename="{filename}"'},
+            media_type='application/x-tar',
+        )
 
     def _get_unused_port(self) -> int:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

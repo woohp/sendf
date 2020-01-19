@@ -16,10 +16,10 @@ def main():
         "-e", "--external", action="store_true", default=False, help="whether or not to use an external ip via uPnP"
     )
     parser.add_argument("files", type=str, nargs="+", help="files to send")
-    args = vars(parser.parse_args())
+    args = parser.parse_args()
 
     # initialize
-    sendf = SendF(args['files'], args['external'], args['output'])
+    sendf = SendF(args.files, args.external, args.output)
     sendf.initialize()
     print(sendf.link)
 

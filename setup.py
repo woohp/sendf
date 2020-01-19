@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 from setuptools import setup, find_packages
 
 setup(
@@ -12,4 +13,7 @@ setup(
     py_modules=["sendf", "upnp"],
     scripts=["scripts/sendf"],
     install_requires=open("requirements.txt").read().split(),
+    extra_requires={
+        'dev': ['ipdb', 'mock', 'requests'],
+    },
 )
