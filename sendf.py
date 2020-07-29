@@ -81,6 +81,7 @@ class SendF(object):
 
     def finalize(self) -> None:
         if self.allow_external:
+            print('deleting port mapping...')
             upnp.delete_port_mapping(self.igd_device, self.port)
             self.allow_external = False
 

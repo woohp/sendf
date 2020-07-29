@@ -9,7 +9,7 @@ import uvicorn
 from sendf import SendF
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(prog="sendf")
     parser.add_argument("-o", "--output", type=str, default=None, help="name of the file the user will receive it as")
     parser.add_argument(
@@ -20,7 +20,6 @@ def main():
 
     # initialize
     sendf = SendF(args.files, args.external, args.output)
-    sendf.initialize()
     print(sendf.link)
 
     routes = [
@@ -39,6 +38,7 @@ def main():
     signal.signal(signal.SIGQUIT, signal_handler)
 
     uvicorn.run(app, host='0.0.0.0', port=sendf.port, loop='asyncio')
+    sendf.finalize()
 
 
 if __name__ == '__main__':
