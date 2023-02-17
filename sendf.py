@@ -23,30 +23,39 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from io import BytesIO
-import uuid
+import argparse
 import os
-import tarfile
+import signal
 import socket
+import sys
+import tarfile
+import types
+import uuid
+from io import BytesIO
+from typing import AsyncGenerator, Optional, Sequence
+
+import uvicorn
+from starlette.applications import Starlette
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
-from starlette.responses import FileResponse, StreamingResponse
+from starlette.responses import FileResponse, Response, StreamingResponse
+from starlette.routing import Route
+
 import upnp
-from typing import Sequence, Optional, AsyncGenerator
 
 
 def get_internal_ip() -> str:
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(('google.com', 80))
+        s.connect(("google.com", 80))
         internal_ip = s.getsockname()[0]
         s.close()
         return internal_ip
     except Exception:
-        raise RuntimeError('Failed to get internal ip address :(')
+        raise RuntimeError("Failed to get internal ip address :(")
 
 
-class SendF(object):
+class SendF:
     def __init__(
         self,
         filenames: Sequence[str],
@@ -55,7 +64,7 @@ class SendF(object):
     ):
         # first, check that all files exists
         if not all(map(os.path.exists, filenames)):
-            raise RuntimeError('File does not exists.')
+            raise RuntimeError("File does not exists.")
         self.filepaths = [os.path.abspath(f) for f in filenames]
 
         self.internal_ip = get_internal_ip()
@@ -69,7 +78,7 @@ class SendF(object):
                 self.external_ip: str = upnp.get_external_ip_address(self.igd_device)
                 upnp.add_port_mapping(igd_device, self.internal_ip, self.port, self.port)
             else:
-                raise RuntimeError('UPnP IGD not found.')
+                raise RuntimeError("UPnP IGD not found.")
 
         else:
             self.external_ip = self.internal_ip
@@ -81,13 +90,13 @@ class SendF(object):
 
     def finalize(self) -> None:
         if self.allow_external:
-            print('deleting port mapping...')
+            print("deleting port mapping...")
             upnp.delete_port_mapping(self.igd_device, self.port)
             self.allow_external = False
 
     async def _stream_tar_file(self) -> AsyncGenerator:
         io = BytesIO()
-        f = tarfile.open(fileobj=io, mode='w')
+        f = tarfile.open(fileobj=io, mode="w")
 
         for path in self.filepaths:
             basename = os.path.basename(path)
@@ -99,8 +108,8 @@ class SendF(object):
         f.close()
         yield io.getvalue()
 
-    async def call(self, request: Request):
-        uuid: str = request.path_params['uuid']
+    async def call(self, request: Request) -> Response:
+        uuid: str = request.path_params["uuid"]
         if uuid != self.uuid:
             raise HTTPException(404)
 
@@ -114,16 +123,16 @@ class SendF(object):
             return FileResponse(self.filepaths[0], filename=filename)
 
         # stream the tar file back
-        filename = self.output_fname or 'Archive.tar'
+        filename = self.output_fname or "Archive.tar"
         return StreamingResponse(
             self._stream_tar_file(),
-            headers={'content-disposition': f'attachment; filename="{filename}"'},
-            media_type='application/x-tar',
+            headers={"content-disposition": f'attachment; filename="{filename}"'},
+            media_type="application/x-tar",
         )
 
     def _get_unused_port(self) -> int:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.bind(('localhost', 0))
+        s.bind(("localhost", 0))
         addr, port = s.getsockname()
         s.close()
         return port
@@ -131,3 +140,40 @@ class SendF(object):
     @property
     def link(self) -> str:
         return f"http://{self.external_ip}:{self.port}/{self.uuid}"
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(prog="sendf")
+    parser.add_argument("-o", "--output", type=str, default=None, help="name of the file the user will receive it as")
+    parser.add_argument(
+        "-e", "--external", action="store_true", default=False, help="whether or not to use an external ip via uPnP"
+    )
+    parser.add_argument("files", type=str, nargs="+", help="files to send")
+    args = parser.parse_args()
+
+    # initialize
+    sendf = SendF(args.files, args.external, args.output)
+    print(sendf.link)
+
+    routes = [
+        Route("/{uuid}", sendf.call),
+    ]
+
+    app = Starlette(debug=False, routes=routes)
+
+    # setup signal handlers
+    def signal_handler(signal: int, frame: types.FrameType | None) -> None:
+        nonlocal sendf
+        sendf.finalize()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGQUIT, signal_handler)
+
+    uvicorn.run(app, host="0.0.0.0", port=sendf.port, loop="asyncio")
+    sendf.finalize()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,36 @@
+[project]
+name = "sendf"
+description = "Easily send files"
+version = "0.0.4"
+authors = [{name = "Hui Peng Hu", email = "woohp135@gmail.com"}]
+requires-python = ">=3.10"
+dependencies = [
+    "starlette==0.25.0",
+    "uvicorn==0.20.0",
+    "aiofiles",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black",
+    "httpx",
+    "isort"
+]
+
+[project.scripts]
+sendf = "sendf:main"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["*"]
+exclude = []
+namespaces = true
+
+[tool.black]
+line-length = 120
+target-version = ["py310"]
+preview = true

@@ -1,9 +1,9 @@
 import socket
 from io import StringIO
-from urllib.request import urlopen, Request
-from urllib.parse import urlparse
-from xml.dom import minidom
 from typing import Optional
+from urllib.parse import urlparse
+from urllib.request import Request, urlopen
+from xml.dom import minidom
 
 
 def discover() -> Optional[str]:
@@ -19,7 +19,7 @@ ST: urn:schemas-upnp-org:device:InternetGatewayDevice:1\r
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.settimeout(4)
-    sock.sendto(request_packet, ('239.255.255.250', 1900))  # type: ignore
+    sock.sendto(request_packet, ("239.255.255.250", 1900))  # type: ignore
 
     location: Optional[str] = None
     while True:
@@ -28,7 +28,7 @@ ST: urn:schemas-upnp-org:device:InternetGatewayDevice:1\r
         except Exception:
             break
 
-        response_io = StringIO(response.decode('utf-8'))
+        response_io = StringIO(response.decode("utf-8"))
         location = _parse_discovery_response(response_io)
         if location is not None:
             return _find_services(location)
@@ -38,11 +38,11 @@ ST: urn:schemas-upnp-org:device:InternetGatewayDevice:1\r
 
 def _parse_discovery_response(response_io: StringIO):
     for line in response_io:
-        splitted = line.split(':', 1)
+        splitted = line.split(":", 1)
         if len(splitted) != 2:
             continue
         key, value = splitted
-        if key.lower() == 'location':
+        if key.lower() == "location":
             return value.strip()
 
 
@@ -52,23 +52,29 @@ def _find_services(location: str) -> Optional[str]:
     response.close()
 
     def get_text(node) -> str:
-        return ''.join(child_node.data for child_node in node.childNodes if child_node.nodeType == node.TEXT_NODE)
+        return "".join(child_node.data for child_node in node.childNodes if child_node.nodeType == node.TEXT_NODE)
 
-    for node in root_xml.getElementsByTagName('service'):
-        service_type = get_text(node.getElementsByTagName('serviceType')[0])
+    for node in root_xml.getElementsByTagName("service"):
+        service_type = get_text(node.getElementsByTagName("serviceType")[0])
         if service_type in (
-            'urn:schemas-upnp-org:service:WANIPConnection:1',
-            'urn:schemas-upnp-org:service:WANPPPConnection:1',
+            "urn:schemas-upnp-org:service:WANIPConnection:1",
+            "urn:schemas-upnp-org:service:WANPPPConnection:1",
         ):
-            control_url = get_text(node.getElementsByTagName('controlURL')[0])
+            control_url = get_text(node.getElementsByTagName("controlURL")[0])
 
             url_components = urlparse(location)
-            return url_components[0] + '://' + url_components[1] + control_url
+            return url_components[0] + "://" + url_components[1] + control_url
 
     return None
 
 
-def add_port_mapping(device: str, internal_client, internal_port: int, external_port: int, protocol: str = 'TCP'):
+def add_port_mapping(
+    device: str,
+    internal_client,
+    internal_port: int,
+    external_port: int,
+    protocol: str = "TCP",
+):
     body_frag = f"""
 <NewRemoteHost></NewRemoteHost>
 <NewExternalPort>{external_port}</NewExternalPort>
@@ -80,26 +86,26 @@ def add_port_mapping(device: str, internal_client, internal_port: int, external_
 <NewLeaseDuration>0</NewLeaseDuration>
 """
 
-    response = _create_soap_request_helper(device, 'AddPortMapping', body_frag)
+    response = _create_soap_request_helper(device, "AddPortMapping", body_frag)
     assert response.code == 200
 
 
-def delete_port_mapping(device: str, external_port: int, protocol: str = 'TCP'):
+def delete_port_mapping(device: str, external_port: int, protocol: str = "TCP"):
     body_frag = f"""
 <NewRemoteHost></NewRemoteHost>
 <NewExternalPort>{external_port}</NewExternalPort>
 <NewProtocol>{protocol}</NewProtocol>
 """
 
-    response = _create_soap_request_helper(device, 'DeletePortMapping', body_frag)
+    response = _create_soap_request_helper(device, "DeletePortMapping", body_frag)
     assert response.code == 200
 
 
 def get_external_ip_address(device: str):
-    response = _create_soap_request_helper(device, 'GetExternalIPAddress')
+    response = _create_soap_request_helper(device, "GetExternalIPAddress")
     assert response.code == 200
     root_xml = minidom.parseString(response.read())
-    return root_xml.getElementsByTagName('NewExternalIPAddress')[0].childNodes[0].data
+    return root_xml.getElementsByTagName("NewExternalIPAddress")[0].childNodes[0].data
 
 
 def _create_soap_request_helper(device: str, method_name: str, body_fragment: str = ""):
@@ -117,9 +123,9 @@ def _create_soap_request_helper(device: str, method_name: str, body_fragment: st
 
     headers = {
         "Content-Type": r'text/xml; charset="utf-8"',
-        "SOAPAction": rf'urn:schemas-upnp-org:service:WANIPConnection:1#{method_name}'
+        "SOAPAction": rf"urn:schemas-upnp-org:service:WANIPConnection:1#{method_name}",
     }
 
-    request = Request(device, body.encode('ascii'), headers)
+    request = Request(device, body.encode("ascii"), headers)
     response = urlopen(request)
     return response
