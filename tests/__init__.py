@@ -13,7 +13,7 @@ class SendFTestCase(TestCase):
     _file_content: bytes
 
     @classmethod
-    def setUpClass(cls: type[SendFTestCase]) -> None:
+    def setUpClass(cls) -> None:
         super().setUpClass()
         with open(__file__, "rb") as f:
             cls._file_content = f.read()
@@ -25,7 +25,7 @@ class SendFTestCase(TestCase):
         response = client.get(f"/{sendf.uuid}")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content, self._file_content)
-        self.assertEqual(response.headers["content-disposition"], 'attachment; filename="tests.py"')
+        self.assertEqual(response.headers["content-disposition"], 'attachment; filename="__init__.py"')
         self.assertEqual(response.headers["content-type"], "text/x-python; charset=utf-8")
 
     def test_check_file_exists_on_startup(self) -> None:
@@ -58,7 +58,7 @@ class SendFTestCase(TestCase):
         self.assertEqual(response.headers["content-type"], "text/x-python; charset=utf-8")
 
     def test_multiple_files(self) -> None:
-        sendf = SendF(["tests.py", "sendf.py"])
+        sendf = SendF(["tests/__init__.py", "sendf.py"])
         app = Starlette(debug=True, routes=[Route("/{uuid}", sendf.call)])
         client = TestClient(app)
         response = client.get(f"/{sendf.uuid}")
@@ -72,10 +72,10 @@ class SendFTestCase(TestCase):
         # make sure we have a valid tar, and that the tar contains our 2 files
         f = tarfile.open(fileobj=BytesIO(response.content))
         self.assertIsInstance(f, tarfile.TarFile)
-        self.assertEqual(set(f.getnames()), {"tests.py", "sendf.py"})
+        self.assertEqual(set(f.getnames()), {"__init__.py", "sendf.py"})
 
     def test_multiple_files_with_custom_name(self) -> None:
-        sendf = SendF(["tests.py", "sendf.py"], output_fname="customname.tar")
+        sendf = SendF(["tests/__init__.py", "sendf.py"], output_fname="customname.tar")
         app = Starlette(debug=True, routes=[Route("/{uuid}", sendf.call)])
         client = TestClient(app)
         response = client.get(f"/{sendf.uuid}")
@@ -89,10 +89,10 @@ class SendFTestCase(TestCase):
         # make sure we have a valid tar, and that the tar contains our 2 files
         f = tarfile.open(fileobj=BytesIO(response.content))
         self.assertIsInstance(f, tarfile.TarFile)
-        self.assertEqual(set(f.getnames()), {"tests.py", "sendf.py"})
+        self.assertEqual(set(f.getnames()), {"__init__.py", "sendf.py"})
 
     def test_send_folder(self) -> None:
-        sendf = SendF(["scripts"])
+        sendf = SendF(["tests/stuff"])
         app = Starlette(debug=True, routes=[Route("/{uuid}", sendf.call)])
         client = TestClient(app)
         response = client.get(f"/{sendf.uuid}")
@@ -106,4 +106,4 @@ class SendFTestCase(TestCase):
         # make sure we have a valid tar, and that the tar contains our 2 files
         f = tarfile.open(fileobj=BytesIO(response.content))
         self.assertIsInstance(f, tarfile.TarFile)
-        self.assertEqual(f.getnames(), ["scripts", "scripts/sendf"])
+        self.assertEqual(f.getnames(), ["stuff", "stuff/a", "stuff/b.dump", "stuff/c.txt"])

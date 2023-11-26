@@ -1,20 +1,18 @@
 [project]
 name = "sendf"
 description = "Easily send files"
-version = "0.0.4"
+version = "0.0.5"
 authors = [{name = "Hui Peng Hu", email = "woohp135@gmail.com"}]
 requires-python = ">=3.10"
-dependencies = [
-    "starlette==0.25.0",
-    "uvicorn==0.20.0",
-    "aiofiles",
-]
+dependencies = ["starlette==0.32.0.post1", "uvicorn==0.24.0.post1"]
 
 [project.optional-dependencies]
 dev = [
     "black",
-    "httpx",
-    "isort"
+    "flake8",
+    "ipdb",
+    "isort",
+    "mypy >= 1.7",
 ]
 
 [project.scripts]
@@ -32,5 +30,5 @@ namespaces = true
 
 [tool.black]
 line-length = 120
-target-version = ["py310"]
+target-version = ["py311"]
 preview = true

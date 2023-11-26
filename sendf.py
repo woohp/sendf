@@ -31,8 +31,9 @@ import sys
 import tarfile
 import types
 import uuid
+from collections.abc import Sequence
 from io import BytesIO
-from typing import AsyncGenerator, Optional, Sequence
+from typing import AsyncGenerator
 
 import uvicorn
 from starlette.applications import Starlette
@@ -60,7 +61,7 @@ class SendF:
         self,
         filenames: Sequence[str],
         allow_external: bool = False,
-        output_fname: Optional[str] = None,
+        output_fname: str | None = None,
     ):
         # first, check that all files exists
         if not all(map(os.path.exists, filenames)):
@@ -94,7 +95,7 @@ class SendF:
             upnp.delete_port_mapping(self.igd_device, self.port)
             self.allow_external = False
 
-    async def _stream_tar_file(self) -> AsyncGenerator:
+    async def _stream_tar_file(self) -> AsyncGenerator[bytes, None]:
         io = BytesIO()
         f = tarfile.open(fileobj=io, mode="w")
 
