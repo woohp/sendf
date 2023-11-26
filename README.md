@@ -1,4 +1,6 @@
-sendf is a program used to send one or more files to another person.
+sendf sends file(s) to another person through the browser.
+
+[![Build Status](https://github.com/woohp/sendf/actions/workflows/test-suite.yml/badge.svg)](https://github.com/woohp/sendf/actions)
 
 ```
 sendf file [files ...]
