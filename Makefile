@@ -8,4 +8,6 @@ format:
 
 lint:
 	flake8 $(python_files)
+	isort --check-only $(python_files)
+	black --check $(python_files)
 	mypy $(python_files)

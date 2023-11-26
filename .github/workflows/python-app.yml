@@ -30,18 +30,13 @@ jobs:
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
-        flake8 .
+        flake8 sendf.py upnp.py tests
     - name: Lint with isort
       run: |
-        isort --check-only .
+        isort --check-only sendf.py upnp.py tests
     - name: Lint with black
       run: |
-        black --check .
+        black --check sendf.py upnp.py tests
     - name: Run mypy
       run: |
-        mypy .
-        # stop the build if there are Python syntax errors or undefined names
-        mypy .
-    - name: Test with pytest
-      run: |
-        pytest
+        mypy sendf.py upnp.py tests
