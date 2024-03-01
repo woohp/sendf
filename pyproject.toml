@@ -4,7 +4,7 @@ description = "Easily send files"
 version = "0.0.5"
 authors = [{name = "Hui Peng Hu", email = "woohp135@gmail.com"}]
 requires-python = ">=3.10"
-dependencies = ["starlette==0.32.0.post1", "uvicorn==0.24.0.post1"]
+dependencies = ["starlette==0.37.1", "uvicorn==0.27.1"]
 
 [project.optional-dependencies]
 dev = [
