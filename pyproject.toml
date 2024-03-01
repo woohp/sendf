@@ -8,11 +8,9 @@ dependencies = ["starlette==0.32.0.post1", "uvicorn==0.24.0.post1"]
 
 [project.optional-dependencies]
 dev = [
-    "black",
-    "flake8",
     "ipdb",
-    "isort",
     "mypy >= 1.7",
+    "ruff >= 0.3.0",
 ]
 
 [project.scripts]
@@ -28,16 +26,6 @@ include = ["*"]
 exclude = []
 namespaces = true
 
-[tool.black]
-line-length = 120
-target-version = ["py311"]
-preview = true
-
-[tool.isort]
-profile = "black"
-line_length = 119
-multi_line_output = 5
-
 [tool.mypy]
 python_version = "3.11"
 ignore_missing_imports = true
@@ -51,3 +39,14 @@ extra_checks = true
 allow_untyped_defs = false
 allow_any_generics = false
 plugins = "numpy.typing.mypy_plugin"
+
+[tool.ruff]
+line-length = 120
+indent-width = 4
+target-version = "py311"
+preview = true
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "U", "YTT", "B", "C4", "Q"]
+ignore = ["E203", "B028", "B905", "C408"]
+preview = true

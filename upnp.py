@@ -24,7 +24,7 @@ ST: urn:schemas-upnp-org:device:InternetGatewayDevice:1\r
     location: str | None = None
     while True:
         try:
-            response, sender = sock.recvfrom(1024)
+            response, _sender = sock.recvfrom(1024)
         except Exception:
             break
 

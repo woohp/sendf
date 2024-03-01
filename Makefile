@@ -1,13 +1,11 @@
 .PHONY: format
 
-python_files = *.py
+python_files = tests *.py
 
 format:
-	isort $(python_files)
-	black $(python_files)
+	ruff check --select I --fix $(python_files)
+	ruff format --preview $(python_files)
 
 lint:
-	flake8 $(python_files)
-	isort --check-only $(python_files)
-	black --check $(python_files)
+	ruff check --preview $(python_files)
 	mypy $(python_files)

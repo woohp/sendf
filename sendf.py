@@ -31,9 +31,8 @@ import sys
 import tarfile
 import types
 import uuid
-from collections.abc import Sequence
+from collections.abc import AsyncGenerator, Sequence
 from io import BytesIO
-from typing import AsyncGenerator
 
 import uvicorn
 from starlette.applications import Starlette
@@ -53,7 +52,7 @@ def get_internal_ip() -> str:
         s.close()
         return internal_ip
     except Exception:
-        raise RuntimeError("Failed to get internal ip address :(")
+        raise RuntimeError("Failed to get internal ip address :(") from None
 
 
 class SendF:
@@ -134,7 +133,7 @@ class SendF:
     def _get_unused_port(self) -> int:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.bind(("localhost", 0))
-        addr, port = s.getsockname()
+        _addr, port = s.getsockname()
         s.close()
         return port
 
