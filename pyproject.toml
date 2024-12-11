@@ -7,7 +7,7 @@ requires-python = ">=3.10"
 dependencies = ["starlette==0.41.1", "uvicorn==0.32.1"]
 
 [project.optional-dependencies]
-dev = ["ipdb", "mypy >= 1.13", "ruff >= 0.8.2"]
+dev = ["ipdb", "mypy >= 1.13", "ruff >= 0.8.2", "pytest"]
 
 [project.scripts]
 sendf = "sendf:main"
@@ -21,6 +21,11 @@ where = ["."]
 include = ["*"]
 exclude = []
 namespaces = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-s"
+testpaths = ["tests"]
 
 [tool.mypy]
 python_version = "3.12"

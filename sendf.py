@@ -36,7 +36,6 @@ from io import BytesIO
 
 import uvicorn
 from starlette.applications import Starlette
-from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import FileResponse, Response, StreamingResponse
 from starlette.routing import Route
@@ -96,23 +95,17 @@ class SendF:
 
     async def _stream_tar_file(self) -> AsyncGenerator[bytes, None]:
         io = BytesIO()
-        f = tarfile.open(fileobj=io, mode="w")
+        with tarfile.open(fileobj=io, mode="w") as f:
+            for path in self.filepaths:
+                basename = os.path.basename(path)
+                f.add(path, basename)
+                yield io.getvalue()
+                io.truncate(0)
+                io.seek(0)
 
-        for path in self.filepaths:
-            basename = os.path.basename(path)
-            f.add(path, basename)
-            yield io.getvalue()
-            io.truncate(0)
-            io.seek(0)
-
-        f.close()
         yield io.getvalue()
 
     async def call(self, request: Request) -> Response:
-        uuid: str = request.path_params["uuid"]
-        if uuid != self.uuid:
-            raise HTTPException(404)
-
         # make sure all our files exists
         if not all(map(os.path.exists, self.filepaths)):
             raise RuntimeError
@@ -153,10 +146,9 @@ def main() -> None:
 
     # initialize
     sendf = SendF(args.files, args.external, args.output)
-    print(sendf.link)
 
     routes = [
-        Route("/{uuid}", sendf.call),
+        Route(f"/{sendf.uuid}", sendf.call),
     ]
 
     app = Starlette(debug=False, routes=routes)
