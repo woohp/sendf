@@ -2,16 +2,12 @@
 name = "sendf"
 description = "Easily send files"
 version = "0.0.5"
-authors = [{name = "Hui Peng Hu", email = "woohp135@gmail.com"}]
+authors = [{ name = "Hui Peng Hu", email = "woohp135@gmail.com" }]
 requires-python = ">=3.10"
-dependencies = ["starlette==0.37.1", "uvicorn==0.27.1"]
+dependencies = ["starlette==0.41.1", "uvicorn==0.32.1"]
 
 [project.optional-dependencies]
-dev = [
-    "ipdb",
-    "mypy >= 1.7",
-    "ruff >= 0.3.0",
-]
+dev = ["ipdb", "mypy >= 1.13", "ruff >= 0.8.2"]
 
 [project.scripts]
 sendf = "sendf:main"
@@ -27,7 +23,7 @@ exclude = []
 namespaces = true
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 ignore_missing_imports = true
 check_untyped_defs = true
 no_implicit_optional = true
@@ -38,15 +34,14 @@ strict_equality = true
 extra_checks = true
 allow_untyped_defs = false
 allow_any_generics = false
-plugins = "numpy.typing.mypy_plugin"
 
 [tool.ruff]
 line-length = 120
 indent-width = 4
-target-version = "py311"
+target-version = "py312"
 preview = true
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "U", "YTT", "B", "C4", "Q"]
-ignore = ["E203", "B028", "B905", "C408"]
+select = ["E", "F", "I", "U", "YTT", "B", "C4", "PT", "Q", "SIM", "FURB"]
+ignore = ["E203", "B028", "B905", "C408", "SIM102", "SIM108"]
 preview = true
