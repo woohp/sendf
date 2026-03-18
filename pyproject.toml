@@ -4,10 +4,10 @@ description = "Easily send files"
 version = "0.0.5"
 authors = [{ name = "Hui Peng Hu", email = "woohp135@gmail.com" }]
 requires-python = ">=3.10"
-dependencies = ["starlette==0.41.1", "uvicorn==0.32.1"]
+dependencies = ["starlette==0.52.1", "uvicorn==0.42.0"]
 
 [project.optional-dependencies]
-dev = ["ipdb", "mypy >= 1.13", "ruff >= 0.8.2", "pytest"]
+dev = ["ipdb", "mypy >= 1.19.1", "ruff >= 0.15.6", "pytest", "httpx"]
 
 [project.scripts]
 sendf = "sendf:main"
