@@ -6,6 +6,8 @@ from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 from xml.dom import minidom
 
+HTTP_TIMEOUT_SECONDS = 5
+
 
 @dataclass(frozen=True)
 class Device:
@@ -49,7 +51,7 @@ def _parse_discovery_response(response_io: StringIO) -> str | None:
 
 
 def _find_services(location: str) -> Device | None:
-    response = urlopen(location)
+    response = urlopen(location, timeout=HTTP_TIMEOUT_SECONDS)
     root_xml = minidom.parse(response)
     response.close()
 
@@ -131,5 +133,5 @@ def _create_soap_request_helper(device: Device, method_name: str, body_fragment:
     }
 
     request = Request(device.control_url, body.encode("ascii"), headers)
-    response = urlopen(request)
+    response = urlopen(request, timeout=HTTP_TIMEOUT_SECONDS)
     return response
