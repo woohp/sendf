@@ -1,21 +1,22 @@
 import http
 import socket
+from dataclasses import dataclass
 from io import StringIO
-from urllib.parse import urlparse
+from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 from xml.dom import minidom
 
 
-def discover() -> str | None:
-    request_packet = b"""
-M-SEARCH * HTTP/1.1\r
-HOST: 239.255.255.250:1900\r
-MAN: "ssdp:discover"\r
-MX: 1\r
-ST: urn:schemas-upnp-org:device:InternetGatewayDevice:1\r
-\r
-\r
-"""
+@dataclass(frozen=True)
+class Device:
+    control_url: str
+    service_type: str
+
+
+def discover() -> Device | None:
+    request_packet = (
+        b'M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: "ssdp:discover"\r\nMX: 1\r\nST: ssdp:all\r\n\r\n'
+    )
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.settimeout(4)
@@ -47,7 +48,7 @@ def _parse_discovery_response(response_io: StringIO) -> str | None:
     return None
 
 
-def _find_services(location: str) -> str | None:
+def _find_services(location: str) -> Device | None:
     response = urlopen(location)
     root_xml = minidom.parse(response)
     response.close()
@@ -59,18 +60,18 @@ def _find_services(location: str) -> str | None:
         service_type = get_text(node.getElementsByTagName("serviceType")[0])
         if service_type in (
             "urn:schemas-upnp-org:service:WANIPConnection:1",
+            "urn:schemas-upnp-org:service:WANIPConnection:2",
             "urn:schemas-upnp-org:service:WANPPPConnection:1",
         ):
             control_url = get_text(node.getElementsByTagName("controlURL")[0])
 
-            url_components = urlparse(location)
-            return url_components[0] + "://" + url_components[1] + control_url
+            return Device(urljoin(location, control_url), service_type)
 
     return None
 
 
 def add_port_mapping(
-    device: str,
+    device: Device,
     internal_client: str,
     internal_port: int,
     external_port: int,
@@ -91,7 +92,7 @@ def add_port_mapping(
     assert response.status == 200
 
 
-def delete_port_mapping(device: str, external_port: int, protocol: str = "TCP") -> None:
+def delete_port_mapping(device: Device, external_port: int, protocol: str = "TCP") -> None:
     body_frag = f"""
 <NewRemoteHost></NewRemoteHost>
 <NewExternalPort>{external_port}</NewExternalPort>
@@ -102,7 +103,7 @@ def delete_port_mapping(device: str, external_port: int, protocol: str = "TCP") 
     assert response.status == 200
 
 
-def get_external_ip_address(device: str) -> str:
+def get_external_ip_address(device: Device) -> str:
     response = _create_soap_request_helper(device, "GetExternalIPAddress")
     assert response.status == 200
     root_xml = minidom.parseString(response.read())
@@ -111,13 +112,13 @@ def get_external_ip_address(device: str) -> str:
     return ip_address
 
 
-def _create_soap_request_helper(device: str, method_name: str, body_fragment: str = "") -> http.client.HTTPResponse:
+def _create_soap_request_helper(device: Device, method_name: str, body_fragment: str = "") -> http.client.HTTPResponse:
     body = f"""
 <?xml version="1.0"?>
 <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
                    SOAP-ENV:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
   <SOAP-ENV:Body>
-    <m:{method_name} xmlns:m="urn:schemas-upnp-org:service:WANIPConnection:1">
+    <m:{method_name} xmlns:m="{device.service_type}">
       {body_fragment}
     </m:{method_name}>
   </SOAP-ENV:Body>
@@ -126,9 +127,9 @@ def _create_soap_request_helper(device: str, method_name: str, body_fragment: st
 
     headers = {
         "Content-Type": r'text/xml; charset="utf-8"',
-        "SOAPAction": rf"urn:schemas-upnp-org:service:WANIPConnection:1#{method_name}",
+        "SOAPAction": f"{device.service_type}#{method_name}",
     }
 
-    request = Request(device, body.encode("ascii"), headers)
+    request = Request(device.control_url, body.encode("ascii"), headers)
     response = urlopen(request)
     return response

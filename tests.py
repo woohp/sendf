@@ -8,6 +8,7 @@ from starlette.applications import Starlette
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
+import upnp
 from sendf import SendF
 
 
@@ -80,6 +81,27 @@ def test_multiple_files_with_custom_name() -> None:
     with tarfile.open(fileobj=BytesIO(response.content)) as f:
         assert isinstance(f, tarfile.TarFile)
         assert set(f.getnames()) == {"tests.py", "sendf.py"}
+
+
+@pytest.mark.parametrize(
+    "service_type",
+    [
+        "urn:schemas-upnp-org:service:WANIPConnection:1",
+        "urn:schemas-upnp-org:service:WANIPConnection:2",
+        "urn:schemas-upnp-org:service:WANPPPConnection:1",
+    ],
+)
+def test_soap_request_uses_discovered_service_type(service_type: str) -> None:
+    device = upnp.Device("http://router/control", service_type)
+    response = mock.Mock(status=200)
+
+    with mock.patch("upnp.urlopen", return_value=response) as urlopen:
+        upnp.add_port_mapping(device, "192.168.1.2", 1234, 1234)
+
+    request = urlopen.call_args.args[0]
+    assert request.full_url == device.control_url
+    assert request.get_header("Soapaction") == f"{service_type}#AddPortMapping"
+    assert f'xmlns:m="{service_type}"'.encode() in request.data
 
 
 def test_send_folder() -> None:
