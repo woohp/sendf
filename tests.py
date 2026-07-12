@@ -93,7 +93,8 @@ def test_multiple_files_with_custom_name() -> None:
 )
 def test_soap_request_uses_discovered_service_type(service_type: str) -> None:
     device = upnp.Device("http://router/control", service_type)
-    response = mock.Mock(status=200)
+    response = mock.MagicMock(status=200)
+    response.__enter__.return_value = response
 
     with mock.patch("upnp.urlopen", return_value=response) as urlopen:
         upnp.add_port_mapping(device, "192.168.1.2", 1234, 1234)
