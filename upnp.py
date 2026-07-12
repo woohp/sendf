@@ -125,8 +125,7 @@ def _require_success(response: http.client.HTTPResponse, operation: str) -> None
 
 
 def _create_soap_request_helper(device: Device, method_name: str, body_fragment: str = "") -> http.client.HTTPResponse:
-    body = f"""
-<?xml version="1.0"?>
+    body = f"""<?xml version="1.0"?>
 <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
                    SOAP-ENV:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
   <SOAP-ENV:Body>

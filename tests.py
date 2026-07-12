@@ -160,6 +160,7 @@ def test_soap_request_uses_discovered_service_type(service_type: str) -> None:
     request = urlopen.call_args.args[0]
     assert request.full_url == device.control_url
     assert request.get_header("Soapaction") == f"{service_type}#AddPortMapping"
+    assert request.data.startswith(b'<?xml version="1.0"?>')
     assert f'xmlns:m="{service_type}"'.encode() in request.data
 
 
