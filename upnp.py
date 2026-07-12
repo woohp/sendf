@@ -21,6 +21,7 @@ def discover() -> Device | None:
         b'M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: "ssdp:discover"\r\nMX: 1\r\nST: ssdp:all\r\n\r\n'
     )
 
+    seen_locations: set[str] = set()
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         sock.settimeout(4)
         sock.sendto(request_packet, ("239.255.255.250", 1900))
@@ -33,8 +34,13 @@ def discover() -> Device | None:
 
             response_io = StringIO(response.decode("utf-8"))
             location = _parse_discovery_response(response_io)
-            if location is not None:
-                return _find_services(location)
+            if location is None or location in seen_locations:
+                continue
+
+            seen_locations.add(location)
+            device = _find_services(location)
+            if device is not None:
+                return device
 
 
 def _parse_discovery_response(response_io: StringIO) -> str | None:

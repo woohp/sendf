@@ -115,6 +115,32 @@ def test_multiple_files_with_custom_name() -> None:
         assert set(f.getnames()) == {"tests.py", "sendf.py"}
 
 
+def test_discovery_skips_unrelated_upnp_devices() -> None:
+    unrelated_response = b"HTTP/1.1 200 OK\r\nLOCATION: http://speaker/device.xml\r\n\r\n"
+    router_response = b"HTTP/1.1 200 OK\r\nLOCATION: http://router/device.xml\r\n\r\n"
+    discovered_device = upnp.Device(
+        "http://router/control",
+        "urn:schemas-upnp-org:service:WANIPConnection:1",
+    )
+    sock = mock.MagicMock()
+    sock.__enter__.return_value = sock
+    sock.recvfrom.side_effect = [
+        (unrelated_response, ("192.168.1.2", 1900)),
+        (router_response, ("192.168.1.1", 1900)),
+    ]
+
+    with (
+        mock.patch("upnp.socket.socket", return_value=sock),
+        mock.patch("upnp._find_services", side_effect=[None, discovered_device]) as find_services,
+    ):
+        assert upnp.discover() == discovered_device
+
+    assert find_services.call_args_list == [
+        mock.call("http://speaker/device.xml"),
+        mock.call("http://router/device.xml"),
+    ]
+
+
 @pytest.mark.parametrize(
     "service_type",
     [
