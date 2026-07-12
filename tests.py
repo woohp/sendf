@@ -71,7 +71,7 @@ def test_multiple_files() -> None:
     client = TestClient(app)
     response = client.get(f"/{sendf.uuid}")
     assert response.status_code == 200
-    assert response.headers["content-disposition"] == 'attachment; filename="Archive.tar"'
+    assert response.headers["content-disposition"] == "attachment; filename*=utf-8''Archive.tar"
     assert response.headers["content-type"] == "application/x-tar"
 
     # make sure we have a valid tar, and that the tar contains our 2 files
@@ -86,7 +86,7 @@ def test_multiple_files_with_custom_name() -> None:
     client = TestClient(app)
     response = client.get(f"/{sendf.uuid}")
     assert response.status_code == 200
-    assert response.headers["content-disposition"] == 'attachment; filename="customname.tar"'
+    assert response.headers["content-disposition"] == "attachment; filename*=utf-8''customname.tar"
     assert response.headers["content-type"] == "application/x-tar"
 
     # make sure we have a valid tar, and that the tar contains our 2 files
@@ -123,7 +123,7 @@ def test_send_folder() -> None:
     client = TestClient(app)
     response = client.get(f"/{sendf.uuid}")
     assert response.status_code == 200
-    assert response.headers["content-disposition"] == 'attachment; filename="Archive.tar"'
+    assert response.headers["content-disposition"] == "attachment; filename*=utf-8''Archive.tar"
     assert response.headers["content-type"] == "application/x-tar"
 
     # make sure we have a valid tar, and that the tar contains our 2 files

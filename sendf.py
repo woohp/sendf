@@ -36,6 +36,7 @@ import uuid
 from collections.abc import AsyncGenerator, Sequence
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from typing import Any, cast
+from urllib.parse import quote
 
 import uvicorn
 from starlette.applications import Starlette
@@ -163,9 +164,10 @@ class SendF:
             return FileResponse(self.filepaths[0], filename=filename)
 
         filename = self.output_fname or "Archive.tar"
+        encoded_filename = quote(filename, safe="")
         return StreamingResponse(
             self._stream_tar_file(),
-            headers={"content-disposition": f'attachment; filename="{filename}"'},
+            headers={"content-disposition": f"attachment; filename*=utf-8''{encoded_filename}"},
             media_type="application/x-tar",
         )
 
