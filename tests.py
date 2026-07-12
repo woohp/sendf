@@ -28,6 +28,18 @@ def test_check_file_exists_on_startup() -> None:
         SendF(["nonexistant_file"])
 
 
+def test_rejects_duplicate_archive_names(tmp_path: Path) -> None:
+    first = tmp_path / "first" / "file.txt"
+    second = tmp_path / "second" / "file.txt"
+    first.parent.mkdir()
+    second.parent.mkdir()
+    first.touch()
+    second.touch()
+
+    with pytest.raises(RuntimeError, match="unique names"):
+        SendF([str(first), str(second)])
+
+
 def test_raises_error_when_upnp_device_not_found() -> None:
     with mock.patch("upnp.discover", return_value=None), pytest.raises(RuntimeError, match="IGD not found"):
         SendF([__file__], allow_external=True)

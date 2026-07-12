@@ -73,6 +73,10 @@ class SendF:
             raise RuntimeError("File does not exists.")
         self.filepaths = [os.path.abspath(f) for f in filenames]
 
+        archive_names = [os.path.basename(path) for path in self.filepaths]
+        if len(archive_names) != len(set(archive_names)):
+            raise RuntimeError("Files must have unique names.")
+
         self.internal_ip = get_internal_ip()
         self.server_socket = self._create_server_socket()
         self.port = self.server_socket.getsockname()[1]
