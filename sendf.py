@@ -24,15 +24,18 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import argparse
+import asyncio
 import os
 import signal
 import socket
 import sys
 import tarfile
+import threading
 import types
 import uuid
 from collections.abc import AsyncGenerator, Sequence
-from io import BytesIO
+from concurrent.futures import TimeoutError as FutureTimeoutError
+from typing import Any, cast
 
 import uvicorn
 from starlette.applications import Starlette
@@ -41,6 +44,10 @@ from starlette.responses import FileResponse, Response, StreamingResponse
 from starlette.routing import Route
 
 import upnp
+
+
+class StreamCancelled(Exception):
+    pass
 
 
 def get_internal_ip() -> str:
@@ -94,16 +101,48 @@ class SendF:
             self.allow_external = False
 
     async def _stream_tar_file(self) -> AsyncGenerator[bytes, None]:
-        io = BytesIO()
-        with tarfile.open(fileobj=io, mode="w") as f:
-            for path in self.filepaths:
-                basename = os.path.basename(path)
-                f.add(path, basename)
-                yield io.getvalue()
-                io.truncate(0)
-                io.seek(0)
+        loop = asyncio.get_running_loop()
+        chunks: asyncio.Queue[bytes | Exception | None] = asyncio.Queue(maxsize=4)
+        cancelled = threading.Event()
 
-        yield io.getvalue()
+        class TarWriter:
+            def write(self, data: bytes) -> int:
+                if cancelled.is_set():
+                    raise StreamCancelled
+
+                chunk = bytes(data)
+                future = asyncio.run_coroutine_threadsafe(chunks.put(chunk), loop)
+                while True:
+                    try:
+                        future.result(timeout=0.1)
+                        return len(chunk)
+                    except FutureTimeoutError:
+                        if cancelled.is_set():
+                            future.cancel()
+                            raise StreamCancelled from None
+
+        def create_archive() -> None:
+            try:
+                with tarfile.open(fileobj=cast(Any, TarWriter()), mode="w|") as archive:
+                    for filepath in self.filepaths:
+                        archive.add(filepath, os.path.basename(filepath))
+            except StreamCancelled:
+                return
+            except Exception as error:
+                asyncio.run_coroutine_threadsafe(chunks.put(error), loop).result()
+            finally:
+                if not cancelled.is_set():
+                    asyncio.run_coroutine_threadsafe(chunks.put(None), loop).result()
+
+        producer = asyncio.create_task(asyncio.to_thread(create_archive))
+        try:
+            while (chunk := await chunks.get()) is not None:
+                if isinstance(chunk, Exception):
+                    raise chunk
+                yield chunk
+        finally:
+            cancelled.set()
+            await producer
 
     async def call(self, request: Request) -> Response:
         # make sure all our files exists
@@ -115,7 +154,6 @@ class SendF:
             filename = self.output_fname or os.path.basename(self.filepaths[0])
             return FileResponse(self.filepaths[0], filename=filename)
 
-        # stream the tar file back
         filename = self.output_fname or "Archive.tar"
         return StreamingResponse(
             self._stream_tar_file(),
