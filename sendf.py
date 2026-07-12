@@ -74,20 +74,23 @@ class SendF:
         self.filepaths = [os.path.abspath(f) for f in filenames]
 
         self.internal_ip = get_internal_ip()
-        self.port = self._get_unused_port()
+        self.server_socket = self._create_server_socket()
+        self.port = self.server_socket.getsockname()[1]
 
-        # do UPnP discovery and port mapping of external access is needed
-        if allow_external:
-            igd_device = upnp.discover()
-            if igd_device is not None:
+        # do UPnP discovery and port mapping if external access is needed
+        try:
+            if allow_external:
+                igd_device = upnp.discover()
+                if igd_device is None:
+                    raise RuntimeError("UPnP IGD not found.")
                 self.igd_device = igd_device
                 self.external_ip: str = upnp.get_external_ip_address(self.igd_device)
                 upnp.add_port_mapping(igd_device, self.internal_ip, self.port, self.port)
             else:
-                raise RuntimeError("UPnP IGD not found.")
-
-        else:
-            self.external_ip = self.internal_ip
+                self.external_ip = self.internal_ip
+        except Exception:
+            self.server_socket.close()
+            raise
 
         self.allow_external = allow_external
         self.output_fname = output_fname
@@ -95,10 +98,13 @@ class SendF:
         self.uuid = str(uuid.uuid4())[:8]
 
     def finalize(self) -> None:
-        if self.allow_external:
-            print("deleting port mapping...")
-            upnp.delete_port_mapping(self.igd_device, self.port)
-            self.allow_external = False
+        try:
+            if self.allow_external:
+                print("deleting port mapping...")
+                upnp.delete_port_mapping(self.igd_device, self.port)
+                self.allow_external = False
+        finally:
+            self.server_socket.close()
 
     async def _stream_tar_file(self) -> AsyncGenerator[bytes, None]:
         loop = asyncio.get_running_loop()
@@ -161,12 +167,12 @@ class SendF:
             media_type="application/x-tar",
         )
 
-    def _get_unused_port(self) -> int:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.bind(("localhost", 0))
-        _addr, port = s.getsockname()
-        s.close()
-        return port
+    def _create_server_socket(self) -> socket.socket:
+        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server_socket.bind(("0.0.0.0", 0))
+        server_socket.listen()
+        return server_socket
 
     @property
     def link(self) -> str:
@@ -201,7 +207,8 @@ def main() -> None:
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGQUIT, signal_handler)
 
-    uvicorn.run(app, host="0.0.0.0", port=sendf.port, loop="asyncio")
+    config = uvicorn.Config(app, loop="asyncio")
+    uvicorn.Server(config).run(sockets=[sendf.server_socket])
     sendf.finalize()
 
 
