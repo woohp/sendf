@@ -97,7 +97,7 @@ class SendF:
         self.allow_external = allow_external
         self.output_fname = output_fname
 
-        self.uuid = str(uuid.uuid4())[:8]
+        self.uuid = str(uuid.uuid4())
 
     def finalize(self) -> None:
         try:
