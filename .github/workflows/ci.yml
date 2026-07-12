@@ -28,3 +28,9 @@ jobs:
         run: make lint
       - name: Test
         run: pytest
+      - name: Test wheel
+        run: |
+          python -m pip wheel --no-deps --wheel-dir dist .
+          python -m pip install --force-reinstall dist/*.whl
+          cd /tmp
+          sendf --help

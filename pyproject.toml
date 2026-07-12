@@ -16,11 +16,8 @@ sendf = "sendf:main"
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["*"]
-exclude = []
-namespaces = true
+[tool.setuptools]
+py-modules = ["sendf", "upnp"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
