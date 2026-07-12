@@ -192,6 +192,7 @@ def main() -> None:
 
     # initialize
     sendf = SendF(args.files, args.external, args.output)
+    print(sendf.link)
 
     routes = [
         Route(f"/{sendf.uuid}", sendf.call),
@@ -209,7 +210,7 @@ def main() -> None:
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGQUIT, signal_handler)
 
-    config = uvicorn.Config(app, loop="asyncio")
+    config = uvicorn.Config(app, loop="asyncio", log_level="critical", access_log=False)
     uvicorn.Server(config).run(sockets=[sendf.server_socket])
     sendf.finalize()
 
