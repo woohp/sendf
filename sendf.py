@@ -198,7 +198,7 @@ def main() -> None:
 
     # initialize
     sendf = SendF(args.files, args.external, args.output)
-    print(sendf.link)
+    print(sendf.link, flush=True)
 
     routes = [
         Route(f"/{sendf.uuid}", sendf.call),

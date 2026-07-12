@@ -1,7 +1,12 @@
+import select
+import subprocess
+import sys
 import tarfile
 from io import BytesIO
 from pathlib import Path
 from unittest import mock
+from urllib.parse import urlsplit, urlunsplit
+from urllib.request import urlopen
 
 import pytest
 from starlette.applications import Starlette
@@ -130,6 +135,32 @@ def test_soap_request_uses_discovered_service_type(service_type: str) -> None:
     assert request.full_url == device.control_url
     assert request.get_header("Soapaction") == f"{service_type}#AddPortMapping"
     assert f'xmlns:m="{service_type}"'.encode() in request.data
+
+
+def test_cli_serves_file_and_prints_only_link(tmp_path: Path) -> None:
+    path = tmp_path / "file.txt"
+    path.write_text("file contents")
+    process = subprocess.Popen(
+        [sys.executable, "sendf.py", str(path)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    assert process.stdout is not None
+
+    try:
+        readable, _, _ = select.select([process.stdout], [], [], 5)
+        assert readable, "sendf did not print a link"
+        link = process.stdout.readline().strip()
+        parsed_link = urlsplit(link)
+        local_link = urlunsplit((parsed_link.scheme, f"127.0.0.1:{parsed_link.port}", parsed_link.path, "", ""))
+        with urlopen(local_link, timeout=5) as response:
+            assert response.read() == b"file contents"
+    finally:
+        process.terminate()
+        _stdout, stderr = process.communicate(timeout=5)
+
+    assert stderr == ""
 
 
 def test_send_folder() -> None:
