@@ -45,6 +45,21 @@ def test_raises_error_when_upnp_device_not_found() -> None:
         SendF([__file__], allow_external=True)
 
 
+def test_returns_gone_when_file_disappears(tmp_path: Path) -> None:
+    path = tmp_path / "file.txt"
+    path.touch()
+    sendf = SendF([str(path)])
+    path.unlink()
+    app = Starlette(routes=[Route(f"/{sendf.uuid}", sendf.call)])
+
+    with TestClient(app) as client:
+        response = client.get(f"/{sendf.uuid}")
+
+    sendf.finalize()
+    assert response.status_code == 410
+    assert response.text == "A requested file is no longer available."
+
+
 def test_error_when_uuid_is_wrong() -> None:
     sendf = SendF([__file__])
     app = Starlette(debug=True, routes=[Route(f"/{sendf.uuid}", sendf.call)])

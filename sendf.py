@@ -40,6 +40,7 @@ from urllib.parse import quote
 
 import uvicorn
 from starlette.applications import Starlette
+from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import FileResponse, Response, StreamingResponse
 from starlette.routing import Route
@@ -157,9 +158,9 @@ class SendF:
             await producer
 
     async def call(self, request: Request) -> Response:
-        # make sure all our files exists
+        # make sure all our files exist
         if not all(map(os.path.exists, self.filepaths)):
-            raise RuntimeError
+            raise HTTPException(410, "A requested file is no longer available.")
 
         # if it is a single file, then just return that as a FileResponse
         if len(self.filepaths) == 1 and os.path.isfile(self.filepaths[0]):
