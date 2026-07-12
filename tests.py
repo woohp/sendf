@@ -1,7 +1,9 @@
 import select
+import socket
 import subprocess
 import sys
 import tarfile
+from collections.abc import Iterator
 from io import BytesIO
 from pathlib import Path
 from unittest import mock
@@ -15,6 +17,24 @@ from starlette.testclient import TestClient
 
 import upnp
 from sendf import SendF
+
+
+@pytest.fixture(autouse=True)
+def close_sendf_sockets(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    sockets: list[socket.socket] = []
+    create_server_socket = SendF._create_server_socket
+
+    def track_server_socket(sendf: SendF) -> socket.socket:
+        server_socket = create_server_socket(sendf)
+        sockets.append(server_socket)
+        return server_socket
+
+    monkeypatch.setattr(SendF, "_create_server_socket", track_server_socket)
+    try:
+        yield
+    finally:
+        for server_socket in sockets:
+            server_socket.close()
 
 
 def test_basic() -> None:
