@@ -1,6 +1,6 @@
 .PHONY: format
 
-python_files = tests *.py
+python_files = tests.py sendf.py upnp.py
 
 format:
 	ruff check --fix-only --ignore F401 $(python_files)

@@ -25,7 +25,7 @@ namespaces = true
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = "-s"
-testpaths = ["tests"]
+testpaths = ["tests.py"]
 
 [tool.mypy]
 python_version = "3.12"

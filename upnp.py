@@ -106,7 +106,9 @@ def get_external_ip_address(device: str) -> str:
     response = _create_soap_request_helper(device, "GetExternalIPAddress")
     assert response.status == 200
     root_xml = minidom.parseString(response.read())
-    return root_xml.getElementsByTagName("NewExternalIPAddress")[0].childNodes[0].data
+    ip_address = root_xml.getElementsByTagName("NewExternalIPAddress")[0].childNodes[0].nodeValue
+    assert ip_address is not None
+    return ip_address
 
 
 def _create_soap_request_helper(device: str, method_name: str, body_fragment: str = "") -> http.client.HTTPResponse:
