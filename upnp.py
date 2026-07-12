@@ -2,6 +2,7 @@ import http
 import socket
 from dataclasses import dataclass
 from io import StringIO
+from typing import cast
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 from xml.dom import minidom
@@ -137,4 +138,4 @@ def _create_soap_request_helper(device: Device, method_name: str, body_fragment:
 
     request = Request(device.control_url, body.encode("ascii"), headers)
     response = urlopen(request, timeout=HTTP_TIMEOUT_SECONDS)
-    return response
+    return cast(http.client.HTTPResponse, response)
