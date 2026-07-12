@@ -104,7 +104,10 @@ class SendF:
         try:
             if self.allow_external:
                 print("deleting port mapping...")
-                upnp.delete_port_mapping(self.igd_device, self.port)
+                try:
+                    upnp.delete_port_mapping(self.igd_device, self.port)
+                except Exception as error:
+                    print(f"warning: failed to delete port mapping: {error}", file=sys.stderr)
                 self.allow_external = False
         finally:
             self.server_socket.close()
