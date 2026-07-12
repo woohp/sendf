@@ -8,6 +8,7 @@ from urllib.request import Request, urlopen
 from xml.dom import minidom
 
 HTTP_TIMEOUT_SECONDS = 5
+PORT_MAPPING_LEASE_SECONDS = 60 * 60
 
 
 @dataclass(frozen=True)
@@ -90,7 +91,7 @@ def add_port_mapping(
 <NewInternalClient>{internal_client}</NewInternalClient>
 <NewEnabled>1</NewEnabled>
 <NewPortMappingDescription>Insert description here</NewPortMappingDescription>
-<NewLeaseDuration>0</NewLeaseDuration>
+<NewLeaseDuration>{PORT_MAPPING_LEASE_SECONDS}</NewLeaseDuration>
 """
 
     with _create_soap_request_helper(device, "AddPortMapping", body_frag) as response:
