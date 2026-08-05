@@ -39,13 +39,36 @@ def close_sendf_sockets(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 
 def test_basic() -> None:
     sendf = SendF([__file__])
-    app = Starlette(debug=True, routes=[Route("/{uuid}", sendf.call)])
+    app = Starlette(debug=True, routes=[Route("/{slug}", sendf.call)])
     client = TestClient(app)
-    response = client.get(f"/{sendf.uuid}")
+    response = client.get(f"/{sendf.slug}")
     assert response.status_code == 200
     assert response.content == Path(__file__).read_bytes()
     assert response.headers["content-disposition"] == 'attachment; filename="tests.py"'
     assert response.headers["content-type"] == "text/x-python; charset=utf-8"
+
+
+def test_slug_uses_six_bip39_words() -> None:
+    with mock.patch(
+        "sendf.secrets.choice",
+        side_effect=["abandon", "ability", "able", "about", "above", "absent"],
+    ):
+        sendf = SendF([__file__])
+
+    assert sendf.slug == "abandon-ability-able-about-above-absent"
+
+
+def test_slug_accepts_unique_four_letter_prefixes() -> None:
+    with mock.patch(
+        "sendf.secrets.choice",
+        side_effect=["abandon", "ability", "able", "about", "above", "absent"],
+    ):
+        sendf = SendF([__file__])
+
+    app = Starlette(routes=[Route("/{slug}", sendf.call)])
+    response = TestClient(app).get("/aban-abil-able-abou-abov-abse")
+
+    assert response.status_code == 200
 
 
 def test_check_file_exists_on_startup() -> None:
@@ -75,30 +98,30 @@ def test_returns_gone_when_file_disappears(tmp_path: Path) -> None:
     path.touch()
     sendf = SendF([str(path)])
     path.unlink()
-    app = Starlette(routes=[Route(f"/{sendf.uuid}", sendf.call)])
+    app = Starlette(routes=[Route("/{slug}", sendf.call)])
 
     with TestClient(app) as client:
-        response = client.get(f"/{sendf.uuid}")
+        response = client.get(f"/{sendf.slug}")
 
     sendf.finalize()
     assert response.status_code == 410
     assert response.text == "A requested file is no longer available."
 
 
-def test_error_when_uuid_is_wrong() -> None:
+def test_error_when_slug_is_wrong() -> None:
     sendf = SendF([__file__])
-    app = Starlette(debug=True, routes=[Route(f"/{sendf.uuid}", sendf.call)])
+    app = Starlette(debug=True, routes=[Route("/{slug}", sendf.call)])
     client = TestClient(app)
-    response = client.get("/bad-uuid")
+    response = client.get("/bad-slug")
     assert response.status_code == 404
     assert response.content == b"Not Found"
 
 
 def test_single_file_with_custom_name() -> None:
     sendf = SendF([__file__], output_fname="customname.py")
-    app = Starlette(debug=True, routes=[Route("/{uuid}", sendf.call)])
+    app = Starlette(debug=True, routes=[Route("/{slug}", sendf.call)])
     client = TestClient(app)
-    response = client.get(f"/{sendf.uuid}")
+    response = client.get(f"/{sendf.slug}")
     assert response.status_code == 200
     assert response.content == Path(__file__).read_bytes()
     assert response.headers["content-disposition"] == 'attachment; filename="customname.py"'
@@ -107,9 +130,9 @@ def test_single_file_with_custom_name() -> None:
 
 def test_multiple_files() -> None:
     sendf = SendF(["tests.py", "sendf.py"])
-    app = Starlette(debug=True, routes=[Route("/{uuid}", sendf.call)])
+    app = Starlette(debug=True, routes=[Route("/{slug}", sendf.call)])
     client = TestClient(app)
-    response = client.get(f"/{sendf.uuid}")
+    response = client.get(f"/{sendf.slug}")
     assert response.status_code == 200
     assert response.headers["content-disposition"] == "attachment; filename*=utf-8''Archive.tar"
     assert response.headers["content-type"] == "application/x-tar"
@@ -122,9 +145,9 @@ def test_multiple_files() -> None:
 
 def test_multiple_files_with_custom_name() -> None:
     sendf = SendF(["tests.py", "sendf.py"], output_fname="customname.tar")
-    app = Starlette(debug=True, routes=[Route("/{uuid}", sendf.call)])
+    app = Starlette(debug=True, routes=[Route("/{slug}", sendf.call)])
     client = TestClient(app)
-    response = client.get(f"/{sendf.uuid}")
+    response = client.get(f"/{sendf.slug}")
     assert response.status_code == 200
     assert response.headers["content-disposition"] == "attachment; filename*=utf-8''customname.tar"
     assert response.headers["content-type"] == "application/x-tar"
@@ -213,9 +236,9 @@ def test_cli_serves_file_and_prints_only_link(tmp_path: Path) -> None:
 
 def test_send_folder() -> None:
     sendf = SendF(["tests/stuff"])
-    app = Starlette(debug=True, routes=[Route("/{uuid}", sendf.call)])
+    app = Starlette(debug=True, routes=[Route("/{slug}", sendf.call)])
     client = TestClient(app)
-    response = client.get(f"/{sendf.uuid}")
+    response = client.get(f"/{sendf.slug}")
     assert response.status_code == 200
     assert response.headers["content-disposition"] == "attachment; filename*=utf-8''Archive.tar"
     assert response.headers["content-type"] == "application/x-tar"

@@ -26,15 +26,16 @@
 import argparse
 import asyncio
 import os
+import secrets
 import signal
 import socket
 import sys
 import tarfile
 import threading
 import types
-import uuid
 from collections.abc import AsyncGenerator, Sequence
 from concurrent.futures import TimeoutError as FutureTimeoutError
+from importlib.resources import files
 from typing import Any, cast
 from urllib.parse import quote
 
@@ -46,6 +47,8 @@ from starlette.responses import FileResponse, Response, StreamingResponse
 from starlette.routing import Route
 
 import upnp
+
+BIP39_WORDS = tuple(files("sendf_data").joinpath("bip39_english.txt").read_text(encoding="ascii").splitlines())
 
 
 class StreamCancelled(Exception):
@@ -100,7 +103,8 @@ class SendF:
         self.allow_external = allow_external
         self.output_fname = output_fname
 
-        self.uuid = str(uuid.uuid4())
+        self.words = tuple(secrets.choice(BIP39_WORDS) for _ in range(6))
+        self.slug = "-".join(self.words)
 
     def finalize(self) -> None:
         try:
@@ -159,6 +163,13 @@ class SendF:
             await producer
 
     async def call(self, request: Request) -> Response:
+        requested_words = request.path_params["slug"].lower().split("-")
+        if len(requested_words) != len(self.words) or any(
+            len(requested) < min(4, len(expected)) or not expected.startswith(requested)
+            for requested, expected in zip(requested_words, self.words, strict=True)
+        ):
+            raise HTTPException(404)
+
         # make sure all our files exist
         if not all(map(os.path.exists, self.filepaths)):
             raise HTTPException(410, "A requested file is no longer available.")
@@ -185,7 +196,7 @@ class SendF:
 
     @property
     def link(self) -> str:
-        return f"http://{self.external_ip}:{self.port}/{self.uuid}"
+        return f"http://{self.external_ip}:{self.port}/{self.slug}"
 
 
 def main() -> None:
@@ -202,7 +213,7 @@ def main() -> None:
     print(sendf.link, flush=True)
 
     routes = [
-        Route(f"/{sendf.uuid}", sendf.call),
+        Route("/{slug}", sendf.call),
     ]
 
     app = Starlette(debug=False, routes=routes)

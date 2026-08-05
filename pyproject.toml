@@ -18,6 +18,10 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 py-modules = ["sendf", "upnp"]
+packages = ["sendf_data"]
+
+[tool.setuptools.package-data]
+sendf_data = ["bip39_english.txt"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
