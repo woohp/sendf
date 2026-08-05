@@ -1,7 +1,7 @@
 [project]
 name = "sendf"
 description = "Easily send files"
-version = "0.0.5"
+version = "0.0.6"
 authors = [{ name = "Hui Peng Hu", email = "woohp135@gmail.com" }]
 requires-python = ">=3.12"
 dependencies = ["starlette>=1.3.1", "uvicorn>=0.51.0"]
